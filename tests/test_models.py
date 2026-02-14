@@ -13,6 +13,7 @@ from game.models import (
     GameState,
     LogEntry,
     Saves,
+    SkillLevel,
     Stats,
     Weapon,
 )
@@ -42,7 +43,7 @@ def test_character_roundtrip():
         armor=Armor(name="Hazard Suit", ap=3),
         inventory=["Flashlight", "Medkit"],
         weapons=[Weapon(name="Revolver", damage="2d10", range="nearby", shots=6)],
-        skills=["Computers", "First Aid"],
+        skills={"Computers": SkillLevel.TRAINED, "First Aid": SkillLevel.EXPERT},
         conditions=[Condition.PANICKED],
     )
     data = char.model_dump_json()
@@ -52,6 +53,50 @@ def test_character_roundtrip():
     assert restored.armor.ap == 3
     assert restored.weapons[0].name == "Revolver"
     assert Condition.PANICKED in restored.conditions
+    assert restored.skills["Computers"] == SkillLevel.TRAINED
+    assert restored.skills["First Aid"] == SkillLevel.EXPERT
+
+
+def test_skills_as_dict():
+    """Skills are stored as dict[str, SkillLevel]."""
+    char = Character(
+        name="Test",
+        char_class=CharacterClass.MARINE,
+        skills={"Athletics": SkillLevel.EXPERT, "Military Training": SkillLevel.MASTER},
+    )
+    assert char.skills["Athletics"] == SkillLevel.EXPERT
+    assert char.skills["Military Training"] == SkillLevel.MASTER
+
+
+def test_skills_migration_from_list():
+    """Old list[str] format is migrated to dict with TRAINED level."""
+    data = {
+        "name": "OldSave",
+        "char_class": "marine",
+        "skills": ["Military Training", "Athletics"],
+    }
+    char = Character.model_validate(data)
+    assert isinstance(char.skills, dict)
+    assert char.skills["Military Training"] == SkillLevel.TRAINED
+    assert char.skills["Athletics"] == SkillLevel.TRAINED
+
+
+def test_skills_roundtrip_with_tiers():
+    """Skills with different tiers survive JSON roundtrip."""
+    char = Character(
+        name="Test",
+        char_class=CharacterClass.SCIENTIST,
+        skills={
+            "Computers": SkillLevel.MASTER,
+            "First Aid": SkillLevel.TRAINED,
+            "Chemistry": SkillLevel.EXPERT,
+        },
+    )
+    data = char.model_dump_json()
+    restored = Character.model_validate_json(data)
+    assert restored.skills["Computers"] == SkillLevel.MASTER
+    assert restored.skills["First Aid"] == SkillLevel.TRAINED
+    assert restored.skills["Chemistry"] == SkillLevel.EXPERT
 
 
 def test_game_state_roundtrip():
@@ -70,6 +115,19 @@ def test_game_state_roundtrip():
     assert restored.characters["Alice"].char_class == CharacterClass.MARINE
     assert restored.scene == "A dark corridor aboard the station."
     assert len(restored.log) == 1
+
+
+def test_game_state_active_campaign():
+    """GameState includes active_campaign field."""
+    state = GameState(name="Test", active_campaign="Hull Breach")
+    data = state.model_dump_json()
+    restored = GameState.model_validate_json(data)
+    assert restored.active_campaign == "Hull Breach"
+
+
+def test_game_state_active_campaign_default_none():
+    state = GameState(name="Test")
+    assert state.active_campaign is None
 
 
 def test_combat_state_current_combatant():

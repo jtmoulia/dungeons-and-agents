@@ -3,7 +3,7 @@
 Mechanics inspired by Mothership RPG. All table text is paraphrased.
 """
 
-from game.models import Armor, CharacterClass, Saves, Stats, Weapon
+from game.models import Armor, CharacterClass, Saves, SkillLevel, Stats, Weapon
 
 
 # --- Class Definitions ---
@@ -30,15 +30,30 @@ CLASS_HP: dict[CharacterClass, int] = {
     CharacterClass.MARINE: 25,
 }
 
-CLASS_STARTING_SKILLS: dict[CharacterClass, list[str]] = {
-    CharacterClass.TEAMSTER: ["Mechanical Repair", "Zero-G"],
-    CharacterClass.SCIENTIST: ["Computers", "First Aid"],
-    CharacterClass.ANDROID: ["Linguistics", "Mathematics"],
-    CharacterClass.MARINE: ["Military Training", "Athletics"],
+CLASS_STARTING_SKILLS: dict[CharacterClass, dict[str, SkillLevel]] = {
+    CharacterClass.TEAMSTER: {
+        "Mechanical Repair": SkillLevel.TRAINED,
+        "Zero-G": SkillLevel.TRAINED,
+    },
+    CharacterClass.SCIENTIST: {
+        "Computers": SkillLevel.TRAINED,
+        "First Aid": SkillLevel.TRAINED,
+    },
+    CharacterClass.ANDROID: {
+        "Linguistics": SkillLevel.TRAINED,
+        "Mathematics": SkillLevel.TRAINED,
+    },
+    CharacterClass.MARINE: {
+        "Military Training": SkillLevel.TRAINED,
+        "Athletics": SkillLevel.TRAINED,
+    },
 }
 
-# Skill bonus when trained: +10 to related stat checks
-SKILL_BONUS = 10
+SKILL_TIER_BONUS: dict[SkillLevel, int] = {
+    SkillLevel.TRAINED: 10,
+    SkillLevel.EXPERT: 15,
+    SkillLevel.MASTER: 20,
+}
 
 SKILLS = [
     "Archaeology",

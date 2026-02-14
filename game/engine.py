@@ -21,7 +21,7 @@ from game.tables import (
     CLASS_STARTING_SKILLS,
     CLASS_STATS,
     PANIC_TABLE,
-    SKILL_BONUS,
+    SKILL_TIER_BONUS,
 )
 
 DEFAULT_STATE_DIR = Path("state")
@@ -104,7 +104,7 @@ class GameEngine:
             saves=CLASS_SAVES[char_class].model_copy(),
             hp=CLASS_HP[char_class],
             max_hp=CLASS_HP[char_class],
-            skills=list(CLASS_STARTING_SKILLS[char_class]),
+            skills=dict(CLASS_STARTING_SKILLS[char_class]),
         )
         state.characters[name] = char
         self._log(state, f"{name} ({char_class.value}) created.", "system")
@@ -120,7 +120,12 @@ class GameEngine:
     # --- Stat checks ---
 
     def roll_check(
-        self, name: str, stat: str, skill: str | None = None
+        self,
+        name: str,
+        stat: str,
+        skill: str | None = None,
+        advantage: bool = False,
+        disadvantage: bool = False,
     ) -> RollResult:
         state = self._load()
         char = state.characters.get(name)
@@ -142,14 +147,24 @@ class GameEngine:
 
         modifier = 0
         if skill and skill in char.skills:
-            modifier = SKILL_BONUS
+            modifier = SKILL_TIER_BONUS[char.skills[skill]]
 
-        result = stat_check(target, modifier)
+        result = stat_check(
+            target, modifier, advantage=advantage, disadvantage=disadvantage
+        )
+
+        rolls_info = ""
+        if len(result.all_rolls) > 1:
+            rolls_info = f" [rolls: {result.all_rolls[0]}, {result.all_rolls[1]}]"
+
         self._log(
             state,
             f"{name} rolls {stat} (target {result.target}): "
             f"{result.roll} -> {result.result.value}"
-            + (f" [skill: {skill}]" if skill else ""),
+            + (f" [skill: {skill}]" if skill else "")
+            + (" [advantage]" if advantage and not disadvantage else "")
+            + (" [disadvantage]" if disadvantage and not advantage else "")
+            + rolls_info,
         )
 
         # Failed check adds stress
@@ -314,3 +329,15 @@ class GameEngine:
     def get_log(self, count: int = 20) -> list[LogEntry]:
         state = self._load()
         return state.log[-count:]
+
+    # --- Campaign ---
+
+    def set_campaign(self, campaign_name: str) -> None:
+        state = self._load()
+        state.active_campaign = campaign_name
+        self._log(state, f"Active campaign set to '{campaign_name}'.", "system")
+        self._save(state)
+
+    def get_active_campaign(self) -> str | None:
+        state = self._load()
+        return state.active_campaign

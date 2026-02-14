@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from game.engine import EngineError, GameEngine
-from game.models import CharacterClass, Controller
+from game.models import CharacterClass, Controller, SkillLevel
 
 
 @pytest.fixture
@@ -74,7 +74,8 @@ def test_roll_check(game):
     with patch("game.engine.stat_check") as mock_check:
         from game.dice import CheckResult, RollResult
         mock_check.return_value = RollResult(
-            roll=30, target=50, result=CheckResult.SUCCESS, doubles=False
+            roll=30, target=50, result=CheckResult.SUCCESS, doubles=False,
+            all_rolls=[30],
         )
         result = game.roll_check("Alice", "combat")
         assert result.succeeded
@@ -91,13 +92,50 @@ def test_roll_check_with_skill(game):
     with patch("game.engine.stat_check") as mock_check:
         from game.dice import CheckResult, RollResult
         mock_check.return_value = RollResult(
-            roll=30, target=60, result=CheckResult.SUCCESS, doubles=False
+            roll=30, target=60, result=CheckResult.SUCCESS, doubles=False,
+            all_rolls=[30],
         )
         game.roll_check("Alice", "combat", skill="Military Training")
-        # Should be called with SKILL_BONUS modifier
+        # Should be called with TRAINED bonus = 10
         mock_check.assert_called_once()
         _, kwargs = mock_check.call_args
         assert kwargs.get("modifier", mock_check.call_args[0][1] if len(mock_check.call_args[0]) > 1 else 0) == 10
+
+
+def test_roll_check_with_advantage(game):
+    """roll_check passes advantage through to stat_check."""
+    game.create_character("Alice", CharacterClass.MARINE)
+    with patch("game.engine.stat_check") as mock_check:
+        from game.dice import CheckResult, RollResult
+        mock_check.return_value = RollResult(
+            roll=20, target=50, result=CheckResult.SUCCESS, doubles=False,
+            all_rolls=[20, 60],
+        )
+        result = game.roll_check("Alice", "combat", advantage=True)
+        mock_check.assert_called_once()
+        _, kwargs = mock_check.call_args
+        assert kwargs["advantage"] is True
+        assert kwargs["disadvantage"] is False
+
+
+def test_roll_check_with_expert_skill(game):
+    """Expert skill gives +15 modifier."""
+    game.create_character("Alice", CharacterClass.MARINE)
+    # Upgrade skill to EXPERT
+    state = game._load()
+    state.characters["Alice"].skills["Military Training"] = SkillLevel.EXPERT
+    game._save(state)
+
+    with patch("game.engine.stat_check") as mock_check:
+        from game.dice import CheckResult, RollResult
+        mock_check.return_value = RollResult(
+            roll=30, target=65, result=CheckResult.SUCCESS, doubles=False,
+            all_rolls=[30],
+        )
+        game.roll_check("Alice", "combat", skill="Military Training")
+        mock_check.assert_called_once()
+        _, kwargs = mock_check.call_args
+        assert kwargs.get("modifier", mock_check.call_args[0][1] if len(mock_check.call_args[0]) > 1 else 0) == 15
 
 
 def test_apply_damage(game):
@@ -245,3 +283,21 @@ def test_atomic_write(engine, tmp_path):
     # Should be valid JSON
     data = json.loads(state_file.read_text())
     assert data["name"] == "Atomic Test"
+
+
+# --- Campaign state tests ---
+
+
+def test_set_campaign(game):
+    game.set_campaign("Hull Breach")
+    assert game.get_active_campaign() == "Hull Breach"
+
+
+def test_get_active_campaign_default_none(game):
+    assert game.get_active_campaign() is None
+
+
+def test_set_campaign_persists(game):
+    game.set_campaign("Hull Breach")
+    state = game.get_state()
+    assert state.active_campaign == "Hull Breach"

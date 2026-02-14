@@ -1,0 +1,216 @@
+{
+  "name": "Hull Breach Scaffold",
+  "version": "0.1",
+  "description": "Placeholder scaffold for Hull Breach Vol. 1 campaign content. All text is original placeholder — fill in with actual module content.",
+  "author": "Scaffold",
+  "tags": ["sci-fi", "horror", "space-station"],
+  "metadata": {
+    "framework": "TOMBS",
+    "theme": "Tension, Objectives, Monsters, Betrayal, Survival",
+    "setting": "Deep space station with failing systems"
+  },
+  "locations": {
+    "docking_bay": {
+      "name": "Docking Bay Alpha",
+      "description": "A cavernous hangar with flickering emergency lights. Cargo containers are scattered haphazardly. The main airlock shows signs of forced entry.",
+      "tags": ["entry", "hub", "vacuum-risk"],
+      "connections": ["corridor_a", "cargo_hold"],
+      "entities": ["dock_worker_jenkins"]
+    },
+    "corridor_a": {
+      "name": "Main Corridor A",
+      "description": "A long corridor connecting the docking bay to the crew quarters. The overhead lights sputter. Dark stains mark the walls.",
+      "tags": ["transit", "danger"],
+      "connections": ["docking_bay", "crew_quarters", "medbay"],
+      "entities": []
+    },
+    "crew_quarters": {
+      "name": "Crew Quarters",
+      "description": "Rows of personal bunks, most ransacked. Personal effects litter the floor. A terminal flickers with an unread message.",
+      "tags": ["rest", "loot"],
+      "connections": ["corridor_a", "command_deck"],
+      "entities": []
+    },
+    "medbay": {
+      "name": "Medical Bay",
+      "description": "Sterile white surfaces now splattered with something dark. Medical equipment is overturned. The autodoc hums in standby mode.",
+      "tags": ["medical", "danger"],
+      "connections": ["corridor_a"],
+      "entities": ["creature_alpha"]
+    },
+    "command_deck": {
+      "name": "Command Deck",
+      "description": "The nerve center of the station. Multiple screens display warning messages. The captain's chair is empty, a sidearm holstered to its arm.",
+      "tags": ["objective", "secure"],
+      "connections": ["crew_quarters", "reactor_room"],
+      "entities": ["station_ai"]
+    },
+    "cargo_hold": {
+      "name": "Cargo Hold B",
+      "description": "Massive storage area filled with sealed crates. Something skitters in the darkness between the containers. Temperature is dropping.",
+      "tags": ["loot", "danger", "vacuum-risk"],
+      "connections": ["docking_bay"],
+      "entities": ["creature_beta"]
+    },
+    "reactor_room": {
+      "name": "Reactor Core",
+      "description": "The station's fusion reactor pulses with an irregular rhythm. Warning klaxons sound periodically. Radiation levels are elevated.",
+      "tags": ["objective", "hazard"],
+      "connections": ["command_deck"],
+      "entities": []
+    }
+  },
+  "entities": {
+    "dock_worker_jenkins": {
+      "name": "Jenkins",
+      "entity_type": "npc",
+      "description": "A dock worker hiding behind cargo containers. Terrified, covered in grime. Knows what happened but is barely coherent.",
+      "stats": {
+        "strength": 30,
+        "speed": 25,
+        "intellect": 35,
+        "combat": 15,
+        "hp": 15,
+        "armor": 0
+      },
+      "tags": ["survivor", "informant"],
+      "location": "docking_bay"
+    },
+    "creature_alpha": {
+      "name": "Specimen Alpha",
+      "entity_type": "creature",
+      "description": "A biomechanical horror that nests in the medbay. Multiple limbs, acidic blood. It has been feeding on medical supplies.",
+      "stats": {
+        "strength": 55,
+        "speed": 40,
+        "intellect": 10,
+        "combat": 50,
+        "hp": 35,
+        "armor": 3
+      },
+      "tags": ["hostile", "boss", "biological"],
+      "location": "medbay"
+    },
+    "creature_beta": {
+      "name": "Cargo Lurker",
+      "entity_type": "creature",
+      "description": "A smaller creature that moves between cargo containers. Fast, ambush predator. Vulnerable to fire.",
+      "stats": {
+        "strength": 35,
+        "speed": 55,
+        "intellect": 5,
+        "combat": 40,
+        "hp": 20,
+        "armor": 1
+      },
+      "tags": ["hostile", "biological", "ambusher"],
+      "location": "cargo_hold"
+    },
+    "station_ai": {
+      "name": "ARIA",
+      "entity_type": "npc",
+      "description": "The station's AI system. Damaged but functional. May help or hinder depending on crew actions. Knows the reactor status.",
+      "stats": null,
+      "tags": ["ai", "informant", "unpredictable"],
+      "location": "command_deck"
+    }
+  },
+  "missions": {
+    "investigate_signal": {
+      "name": "Investigate the Distress Signal",
+      "description": "The crew received a garbled distress signal from Station Omega-7. Dock and determine what happened to the crew.",
+      "objectives": [
+        "Dock at Station Omega-7",
+        "Find survivors",
+        "Access the station logs from the Command Deck"
+      ],
+      "rewards": ["Station access codes", "Jenkins' intel"],
+      "tags": ["main", "investigation"],
+      "location": "docking_bay"
+    },
+    "stabilize_reactor": {
+      "name": "Stabilize the Reactor",
+      "description": "The reactor is approaching critical. If it fails, the station loses life support. Someone needs to reach the reactor core and perform a manual override.",
+      "objectives": [
+        "Reach the Reactor Core",
+        "Pass an Intellect check to assess the damage",
+        "Perform manual override (Mechanical Repair or Engineering)"
+      ],
+      "rewards": ["Station life support restored", "Access to sealed sections"],
+      "tags": ["main", "urgent", "technical"],
+      "location": "reactor_room"
+    },
+    "clear_medbay": {
+      "name": "Clear the Medical Bay",
+      "description": "The medbay is infested. The autodoc is needed for treating injuries but Specimen Alpha has claimed the space.",
+      "objectives": [
+        "Defeat or drive off Specimen Alpha",
+        "Restore autodoc to working order"
+      ],
+      "rewards": ["Autodoc access (+20 to First Aid)", "Medical supplies"],
+      "tags": ["side", "combat"],
+      "location": "medbay"
+    }
+  },
+  "factions": {
+    "station_crew": {
+      "name": "Station Omega-7 Survivors",
+      "description": "The remaining crew of the station, scattered and terrified. Jenkins is the first one found.",
+      "disposition": "friendly",
+      "tags": ["human", "survivor"]
+    },
+    "the_specimens": {
+      "name": "The Specimens",
+      "description": "Biological entities that have overrun the station. Origin unknown — possibly escaped from a research lab.",
+      "disposition": "hostile",
+      "tags": ["biological", "alien"]
+    },
+    "corporate": {
+      "name": "Stellaris Corp",
+      "description": "The corporation that owns the station. Their true motives for the research conducted here are unclear.",
+      "disposition": "neutral",
+      "tags": ["corporate", "secretive"]
+    }
+  },
+  "assets": {
+    "station_map": {
+      "name": "Station Omega-7 Schematic",
+      "description": "A partial map of the station layout. Some sections are marked as 'RESTRICTED'.",
+      "asset_type": "intel",
+      "tags": ["map", "information"]
+    },
+    "reactor_override_key": {
+      "name": "Reactor Override Key",
+      "description": "A physical key needed to perform the manual reactor override. Last seen on the captain's person.",
+      "asset_type": "item",
+      "tags": ["key", "objective"]
+    }
+  },
+  "random_tables": {
+    "station_events": {
+      "name": "Station Events",
+      "dice": "1d20",
+      "entries": [
+        {"min_roll": 1, "max_roll": 3, "description": "Power flickers — all lights go out for 1d10 rounds.", "effect": "Darkness. All checks at disadvantage without a light source."},
+        {"min_roll": 4, "max_roll": 6, "description": "Strange noise echoes through the corridors.", "effect": "All characters gain 1 stress."},
+        {"min_roll": 7, "max_roll": 9, "description": "A sealed door hisses open on its own.", "effect": "New area accessible. Roll for encounter."},
+        {"min_roll": 10, "max_roll": 12, "description": "Emergency broadcast plays on loop — a voice pleading for help.", "effect": "All characters gain 1 stress. May reveal clue."},
+        {"min_roll": 13, "max_roll": 15, "description": "You find a supply cache behind a loose panel.", "effect": "Gain 1d3 random supplies from basic equipment list."},
+        {"min_roll": 16, "max_roll": 18, "description": "Hull groans and shudders — micro-breach detected nearby.", "effect": "Body save or take 1d10 damage from decompression."},
+        {"min_roll": 19, "max_roll": 20, "description": "Something is watching from the vents. You catch a glimpse of movement.", "effect": "Random creature appears. Roll initiative."}
+      ]
+    },
+    "loot_table": {
+      "name": "Cargo Loot",
+      "dice": "1d10",
+      "entries": [
+        {"min_roll": 1, "max_roll": 2, "description": "Empty crate — already looted.", "effect": ""},
+        {"min_roll": 3, "max_roll": 4, "description": "Emergency rations (3 days).", "effect": "Add to inventory."},
+        {"min_roll": 5, "max_roll": 6, "description": "Spare oxygen tank (4 hours).", "effect": "Add to inventory."},
+        {"min_roll": 7, "max_roll": 8, "description": "Flare gun with 2 flares.", "effect": "Add weapon: Flare Gun (1d10, nearby, 2 shots, fire damage)."},
+        {"min_roll": 9, "max_roll": 9, "description": "Standard-issue sidearm with half a magazine.", "effect": "Add weapon: Pistol (2d10, nearby, 4 shots)."},
+        {"min_roll": 10, "max_roll": 10, "description": "Sealed research case marked 'CLASSIFIED'.", "effect": "Contains intel about the specimens. Key plot item."}
+      ]
+    }
+  }
+}

@@ -59,6 +59,8 @@ class CombatEngine:
         name: str,
         action: str,
         target: str | None = None,
+        advantage: bool = False,
+        disadvantage: bool = False,
     ) -> dict:
         state = self.engine._load()
 
@@ -81,7 +83,11 @@ class CombatEngine:
                 raise EngineError(f"Target '{target}' not found.")
 
             # Roll combat stat check
-            check = stat_check(char.stats.combat)
+            check = stat_check(
+                char.stats.combat,
+                advantage=advantage,
+                disadvantage=disadvantage,
+            )
             result["roll"] = check.roll
             result["check_result"] = check.result.value
 
@@ -118,7 +124,11 @@ class CombatEngine:
             result["effect"] = "Defending: +10 to Body saves until next turn."
 
         elif action == "flee":
-            check = stat_check(char.stats.speed)
+            check = stat_check(
+                char.stats.speed,
+                advantage=advantage,
+                disadvantage=disadvantage,
+            )
             result["roll"] = check.roll
             result["check_result"] = check.result.value
             if check.succeeded:

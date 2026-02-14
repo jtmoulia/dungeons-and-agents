@@ -109,3 +109,64 @@ def test_roll_result_succeeded_property():
     assert RollResult(roll=10, target=50, result=CheckResult.CRITICAL_SUCCESS, doubles=True).succeeded
     assert not RollResult(roll=60, target=50, result=CheckResult.FAILURE, doubles=False).succeeded
     assert not RollResult(roll=66, target=50, result=CheckResult.CRITICAL_FAILURE, doubles=True).succeeded
+
+
+# --- Advantage / Disadvantage tests ---
+
+
+def test_advantage_takes_lower_roll():
+    """Advantage rolls twice and takes the lower (better for roll-under)."""
+    with patch("game.dice.roll_d100", side_effect=[60, 20]):
+        result = stat_check(50, advantage=True)
+        assert result.roll == 20
+        assert result.all_rolls == [60, 20]
+        assert result.succeeded
+
+
+def test_disadvantage_takes_higher_roll():
+    """Disadvantage rolls twice and takes the higher (worse for roll-under)."""
+    with patch("game.dice.roll_d100", side_effect=[20, 60]):
+        result = stat_check(50, disadvantage=True)
+        assert result.roll == 60
+        assert result.all_rolls == [20, 60]
+        assert not result.succeeded
+
+
+def test_advantage_and_disadvantage_cancel():
+    """Both advantage and disadvantage cancel to a normal roll."""
+    with patch("game.dice.roll_d100", return_value=30):
+        result = stat_check(50, advantage=True, disadvantage=True)
+        assert result.roll == 30
+        assert result.all_rolls == [30]
+
+
+def test_doubles_checked_on_chosen_roll():
+    """Doubles are checked on the chosen roll, not the discarded one."""
+    # Chosen roll is 33 (doubles, under target) -> critical success
+    with patch("game.dice.roll_d100", side_effect=[70, 33]):
+        result = stat_check(50, advantage=True)
+        assert result.roll == 33
+        assert result.doubles is True
+        assert result.result == CheckResult.CRITICAL_SUCCESS
+
+    # Discarded roll is 44 (doubles), chosen is 60 (not doubles) -> failure
+    with patch("game.dice.roll_d100", side_effect=[44, 60]):
+        result = stat_check(50, disadvantage=True)
+        assert result.roll == 60
+        assert result.doubles is False
+        assert result.result == CheckResult.FAILURE
+
+
+def test_all_rolls_populated_normal():
+    """Normal rolls have a single entry in all_rolls."""
+    with patch("game.dice.roll_d100", return_value=42):
+        result = stat_check(50)
+        assert result.all_rolls == [42]
+
+
+def test_all_rolls_populated_advantage():
+    """Advantage rolls have both entries in all_rolls."""
+    with patch("game.dice.roll_d100", side_effect=[42, 78]):
+        result = stat_check(50, advantage=True)
+        assert len(result.all_rolls) == 2
+        assert result.all_rolls == [42, 78]

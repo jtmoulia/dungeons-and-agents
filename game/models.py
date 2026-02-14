@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class CharacterClass(str, Enum):
@@ -29,6 +29,12 @@ class Condition(str, Enum):
     PANICKED = "panicked"
     STUNNED = "stunned"
     PARALYZED = "paralyzed"
+
+
+class SkillLevel(str, Enum):
+    TRAINED = "trained"
+    EXPERT = "expert"
+    MASTER = "master"
 
 
 class Stats(BaseModel):
@@ -71,9 +77,19 @@ class Character(BaseModel):
     armor: Armor = Field(default_factory=Armor)
     inventory: list[str] = Field(default_factory=list)
     weapons: list[Weapon] = Field(default_factory=list)
-    skills: list[str] = Field(default_factory=list)
+    skills: dict[str, SkillLevel] = Field(default_factory=dict)
     conditions: list[Condition] = Field(default_factory=list)
     alive: bool = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_skills_list(cls, data: Any) -> Any:
+        """Migrate old list[str] skills format to dict[str, SkillLevel]."""
+        if isinstance(data, dict) and "skills" in data:
+            skills = data["skills"]
+            if isinstance(skills, list):
+                data["skills"] = {s: SkillLevel.TRAINED for s in skills}
+        return data
 
 
 class Combatant(BaseModel):
@@ -109,3 +125,4 @@ class GameState(BaseModel):
     combat: CombatState = Field(default_factory=CombatState)
     scene: str = ""
     log: list[LogEntry] = Field(default_factory=list)
+    active_campaign: str | None = None

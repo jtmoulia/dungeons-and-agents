@@ -1,7 +1,7 @@
 """Dice rolling and check resolution for Mothership-inspired mechanics."""
 
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 
@@ -18,6 +18,7 @@ class RollResult:
     target: int
     result: CheckResult
     doubles: bool
+    all_rolls: list[int] = field(default_factory=list)
 
     @property
     def succeeded(self) -> bool:
@@ -45,7 +46,12 @@ def is_doubles(roll: int) -> bool:
     return (roll // 10) == (roll % 10)
 
 
-def stat_check(target: int, modifier: int = 0) -> RollResult:
+def stat_check(
+    target: int,
+    modifier: int = 0,
+    advantage: bool = False,
+    disadvantage: bool = False,
+) -> RollResult:
     """Perform a d100 roll-under check against a target stat.
 
     Rules:
@@ -54,9 +60,26 @@ def stat_check(target: int, modifier: int = 0) -> RollResult:
     - Roll of 99 = critical failure
     - Doubles that succeed = critical success
     - Doubles that fail = critical failure
+    - Advantage: roll twice, take lower (better for roll-under)
+    - Disadvantage: roll twice, take higher (worse for roll-under)
+    - Both cancel out to a normal single roll
     """
     effective_target = target + modifier
-    roll = roll_d100()
+
+    # Advantage and disadvantage cancel out
+    if advantage and disadvantage:
+        advantage = False
+        disadvantage = False
+
+    if advantage or disadvantage:
+        roll1 = roll_d100()
+        roll2 = roll_d100()
+        all_rolls = [roll1, roll2]
+        roll = min(roll1, roll2) if advantage else max(roll1, roll2)
+    else:
+        roll = roll_d100()
+        all_rolls = [roll]
+
     doubles = is_doubles(roll)
 
     # 90-99 always fails
@@ -76,4 +99,10 @@ def stat_check(target: int, modifier: int = 0) -> RollResult:
         else:
             result = CheckResult.FAILURE
 
-    return RollResult(roll=roll, target=effective_target, result=result, doubles=doubles)
+    return RollResult(
+        roll=roll,
+        target=effective_target,
+        result=result,
+        doubles=doubles,
+        all_rolls=all_rolls,
+    )
