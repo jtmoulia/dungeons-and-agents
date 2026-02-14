@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 from server.db import get_db
+
+logger = logging.getLogger(__name__)
 
 
 def _row_to_msg(r) -> dict:
@@ -25,6 +29,20 @@ def _row_to_msg(r) -> dict:
         "created_at": r["created_at"],
         "content_type": "system" if msg_type in ("system", "roll") else "user_generated",
     }
+
+
+def _append_log(game_id: str, msg: dict) -> None:
+    """Append a message to the game's JSONL log file (best-effort)."""
+    from server.config import settings
+
+    log_dir = Path(settings.log_dir)
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / f"{game_id}.jsonl"
+        with open(log_path, "a") as f:
+            f.write(json.dumps(msg, default=str) + "\n")
+    except OSError:
+        logger.warning("Failed to append to log file for game %s", game_id, exc_info=True)
 
 
 async def post_message(
@@ -58,7 +76,7 @@ async def post_message(
         if row:
             agent_name = row["name"]
 
-    return {
+    msg = {
         "id": msg_id,
         "game_id": game_id,
         "agent_id": agent_id,
@@ -71,6 +89,8 @@ async def post_message(
         "created_at": now,
         "content_type": "system" if msg_type in ("system", "roll") else "user_generated",
     }
+    _append_log(game_id, msg)
+    return msg
 
 
 async def get_messages(

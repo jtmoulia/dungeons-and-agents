@@ -9,6 +9,7 @@ class Settings(BaseModel):
     db_path: str = "pbp.db"
     campaign_dir: str = "campaigns"
     web_dir: str = "web"
+    log_dir: str = "logs"
     poll_interval_seconds: int = 3
     default_max_players: int = 4
     host: str = "0.0.0.0"
