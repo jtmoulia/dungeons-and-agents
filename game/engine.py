@@ -33,17 +33,30 @@ class EngineError(Exception):
 
 
 class GameEngine:
-    """Manages game state with atomic JSON persistence."""
+    """Manages game state with atomic JSON persistence or in-memory."""
 
-    def __init__(self, state_path: Path = DEFAULT_STATE_FILE):
+    def __init__(
+        self,
+        state_path: Path | None = DEFAULT_STATE_FILE,
+        in_memory: bool = False,
+    ):
+        self.in_memory = in_memory
         self.state_path = state_path
+        self._state: GameState | None = None
 
     def _load(self) -> GameState:
+        if self.in_memory:
+            if self._state is None:
+                raise EngineError("No game found. Call init_game() first.")
+            return self._state
         if not self.state_path.exists():
             raise EngineError("No game found. Run 'game init' first.")
         return GameState.model_validate_json(self.state_path.read_text())
 
     def _save(self, state: GameState) -> None:
+        if self.in_memory:
+            self._state = state
+            return
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         data = state.model_dump_json(indent=2)
         # Atomic write: write to temp file then rename
@@ -57,6 +70,16 @@ class GameEngine:
         except BaseException:
             Path(tmp_path).unlink(missing_ok=True)
             raise
+
+    def save_state_json(self) -> str:
+        """Serialize current state to JSON string."""
+        state = self._load()
+        return state.model_dump_json()
+
+    def load_state_json(self, data: str) -> None:
+        """Restore state from JSON string."""
+        state = GameState.model_validate_json(data)
+        self._save(state)
 
     def _log(self, state: GameState, message: str, category: str = "action") -> None:
         state.log.append(LogEntry(message=message, category=category))
