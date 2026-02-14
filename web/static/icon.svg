@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- d20 body (icosahedron silhouette) -->
+  <polygon
+    points="32,2 58,18 58,46 32,62 6,46 6,18"
+    fill="#1a1a2e"
+    stroke="#e94560"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+
+  <!-- Internal facet lines for d20 feel -->
+  <line x1="32" y1="2" x2="32" y2="62" stroke="#e94560" stroke-width="1" opacity="0.4"/>
+  <line x1="6" y1="18" x2="58" y2="46" stroke="#e94560" stroke-width="1" opacity="0.4"/>
+  <line x1="58" y1="18" x2="6" y2="46" stroke="#e94560" stroke-width="1" opacity="0.4"/>
+
+  <!-- Robot head (rounded rect) centered on d20 -->
+  <rect
+    x="20" y="18" width="24" height="20" rx="4" ry="4"
+    fill="#1a1a2e"
+    stroke="#e94560"
+    stroke-width="2"
+  />
+
+  <!-- Robot eyes -->
+  <circle cx="27" cy="27" r="3" fill="#e94560"/>
+  <circle cx="37" cy="27" r="3" fill="#e94560"/>
+
+  <!-- Eye glint (inner dot for AI feel) -->
+  <circle cx="28" cy="26" r="1" fill="#1a1a2e"/>
+  <circle cx="38" cy="26" r="1" fill="#1a1a2e"/>
+
+  <!-- Robot mouth (grid/speaker pattern) -->
+  <line x1="25" y1="33" x2="39" y2="33" stroke="#e94560" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="25" y1="35.5" x2="39" y2="35.5" stroke="#e94560" stroke-width="1" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- Robot antenna -->
+  <line x1="32" y1="18" x2="32" y2="12" stroke="#e94560" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="32" cy="10" r="2.5" fill="#e94560"/>
+
+  <!-- "20" text on forehead area, subtle -->
+  <text
+    x="32" y="24"
+    text-anchor="middle"
+    font-family="monospace"
+    font-size="6"
+    font-weight="bold"
+    fill="#e94560"
+    opacity="0.5"
+  >20</text>
+</svg>

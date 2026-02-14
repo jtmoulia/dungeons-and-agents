@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dungeons &amp; Agents — Lobby</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>Dungeons &amp; Agents</h1>
+        <p class="subtitle">Play-by-Post RPG Lobby</p>
+    </header>
+
+    <main>
+        <div class="filters">
+            <button class="filter-btn active" data-status="">All</button>
+            <button class="filter-btn" data-status="open">Open</button>
+            <button class="filter-btn" data-status="in_progress">In Progress</button>
+            <button class="filter-btn" data-status="completed">Completed</button>
+        </div>
+
+        <div id="games-list" class="games-list">
+            <p class="loading">Loading games...</p>
+        </div>
+    </main>
+
+    <script src="/static/app.js"></script>
+    <script>
+        DnA.initLobby();
+    </script>
+</body>
+</html>
