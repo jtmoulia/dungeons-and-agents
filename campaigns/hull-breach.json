@@ -1,0 +1,410 @@
+{
+  "name": "Hull Breach",
+  "version": "1.0",
+  "description": "The deep-space mining vessel MSV Koronis suffers a catastrophic hull breach mid-transit through the Gould Belt. Emergency bulkheads seal, splitting the crew across depressurized sections. As survivors scramble to restore life support and seal the breach, they discover the damage wasn't caused by a micrometeorite — something cut through from the outside. And it's still on the ship.",
+  "author": "Campaign Generator",
+  "tags": ["sci-fi", "horror", "derelict-ship", "survival", "claustrophobic"],
+  "metadata": {
+    "framework": "TOMBS",
+    "theme": "Tension, Objectives, Monsters, Betrayal, Survival",
+    "setting": "Crippled mining vessel drifting through the Gould Belt",
+    "player_count": "3-5",
+    "estimated_sessions": "3-5"
+  },
+  "locations": {
+    "bridge": {
+      "name": "Bridge",
+      "description": "The command center of the Koronis. Half the consoles are dark, the rest cycling through damage reports in angry red text. The main viewport is webbed with fracture lines. Captain Vasquez's coffee mug still steams on the armrest — she was here seconds before the breach.",
+      "tags": ["objective", "secure", "hub"],
+      "connections": ["upper_corridor", "captains_quarters"],
+      "entities": ["nav_officer_tran"]
+    },
+    "upper_corridor": {
+      "name": "Upper Corridor",
+      "description": "The primary transit spine of the upper deck. Emergency lighting casts everything in deep amber. Pressure seals have dropped at both ends, creating an airlock-like bottleneck. The floor vibrates with a low, arrhythmic shudder from somewhere below.",
+      "tags": ["transit", "danger"],
+      "connections": ["bridge", "crew_mess", "engineering_access"],
+      "entities": []
+    },
+    "crew_mess": {
+      "name": "Crew Mess Hall",
+      "description": "Tables bolted to the floor, trays of reconstituted protein scattered by the impact. The vending machine sparks intermittently. A wall-mounted screen loops a morale video about 'Stellaris Corp family values.' One of the ceiling panels hangs open, revealing ductwork slick with condensation.",
+      "tags": ["rest", "loot", "safe"],
+      "connections": ["upper_corridor", "crew_berths"],
+      "entities": ["cook_okafor"]
+    },
+    "crew_berths": {
+      "name": "Crew Berths",
+      "description": "Rows of coffin-sized sleeping pods, half of them sealed shut with occupants in emergency cryo. Personal effects drift in the low gravity — photographs, prayer beads, a child's drawing. The air recycler wheezes like a dying animal.",
+      "tags": ["rest", "loot"],
+      "connections": ["crew_mess"],
+      "entities": []
+    },
+    "engineering_access": {
+      "name": "Engineering Access Shaft",
+      "description": "A vertical shaft connecting upper and lower decks. The ladder rungs are slick with hydraulic fluid. Emergency lights strobe in sequence, illuminating the shaft in staccato flashes. Deep gouges score the walls — four parallel lines, evenly spaced.",
+      "tags": ["transit", "danger", "hazard"],
+      "connections": ["upper_corridor", "lower_corridor"],
+      "entities": []
+    },
+    "lower_corridor": {
+      "name": "Lower Corridor",
+      "description": "The lower deck transit corridor. The floor is buckled from the impact, creating uneven terrain. Atmosphere is thin here — suit seals recommended. Frost crystals form on exposed metal where the temperature drops near the breach sections.",
+      "tags": ["transit", "danger", "vacuum-risk"],
+      "connections": ["engineering_access", "engine_room", "cargo_bay", "mining_bay"],
+      "entities": ["void_stalker_scout"]
+    },
+    "engine_room": {
+      "name": "Engine Room",
+      "description": "The Koronis runs a Kugelblitz drive — a contained micro black hole. The containment field flickers visibly, casting warped shadows. Chief Engineer Reyes has barricaded herself behind the main console, jury-rigging a bypass to keep containment stable. If it fails, nothing else matters.",
+      "tags": ["objective", "hazard", "critical"],
+      "connections": ["lower_corridor", "coolant_subsystem"],
+      "entities": ["chief_reyes"]
+    },
+    "coolant_subsystem": {
+      "name": "Coolant Subsystem",
+      "description": "A maze of pipes and heat exchangers. Coolant vapor hangs in the air, limiting visibility to three meters. The temperature oscillates between freezing and scalding as damaged valves cycle. Something has built a nest of shredded insulation and wiring in the far corner.",
+      "tags": ["danger", "hazard", "loot"],
+      "connections": ["engine_room"],
+      "entities": ["void_stalker_juvenile"]
+    },
+    "cargo_bay": {
+      "name": "Cargo Bay",
+      "description": "Massive hold filled with crated ore samples and mining equipment. The bay doors are warped but holding. Magnetic clamps have failed on several crates, leaving them drifting in low-g pockets. The main cargo manifest terminal still works.",
+      "tags": ["loot", "hub"],
+      "connections": ["lower_corridor", "breach_site"],
+      "entities": ["miner_delacroix"]
+    },
+    "mining_bay": {
+      "name": "Mining Equipment Bay",
+      "description": "Industrial cutting lasers, plasma torches, and rock drills line the walls in charging cradles. Most are depleted from the last operation, but a few still hold charge. The weapon locker — technically for 'claim defense' — is bolted shut with a captain-level lock.",
+      "tags": ["loot", "armory"],
+      "connections": ["lower_corridor"],
+      "entities": []
+    },
+    "breach_site": {
+      "name": "Hull Breach Site",
+      "description": "The source of it all. A ragged wound in the Koronis's outer hull, three meters across. Emergency sealant foam has slowed the decompression but hasn't stopped it. The edges of the breach curve inward — and the cut marks match nothing in the micrometeorite database. Through the gap, the Gould Belt nebula pulses a sickly violet. The void beyond feels like it's looking back.",
+      "tags": ["objective", "vacuum-risk", "hazard", "danger"],
+      "connections": ["cargo_bay"],
+      "entities": ["void_stalker_queen"]
+    },
+    "medbay": {
+      "name": "Medical Bay",
+      "description": "A compact trauma center designed for mining injuries. The autodoc is operational but its anesthetic supply is depleted. Surgical tools rattle in their trays from the ship's vibrations. A body on the operating table has been opened — not by the autodoc. The incisions are exploratory, methodical.",
+      "tags": ["medical", "danger"],
+      "connections": ["upper_corridor"],
+      "entities": ["science_officer_lin"]
+    },
+    "captains_quarters": {
+      "name": "Captain's Quarters",
+      "description": "Spartan but private. A locked personal terminal sits on the desk, its screen displaying a Stellaris Corp encryption prompt. Captain Vasquez's jacket hangs on the chair. In the pocket: a keycard marked 'MINING BAY — AUTHORIZED PERSONNEL ONLY' and a handwritten note that reads 'If they find out what we pulled from Asteroid KX-7, none of us are going home.'",
+      "tags": ["loot", "objective", "secure"],
+      "connections": ["bridge"],
+      "entities": []
+    }
+  },
+  "entities": {
+    "nav_officer_tran": {
+      "name": "Navigation Officer Tran",
+      "entity_type": "npc",
+      "description": "Found on the bridge, bleeding from a head wound. Tran was at the helm when the breach hit. She saw something on the proximity sensors a split second before impact — not a rock. She's shaken but competent, and desperate to get a distress signal out.",
+      "stats": {
+        "strength": 25,
+        "speed": 30,
+        "intellect": 50,
+        "combat": 20,
+        "hp": 10,
+        "armor": 0
+      },
+      "tags": ["survivor", "informant", "friendly"],
+      "location": "bridge"
+    },
+    "cook_okafor": {
+      "name": "Okafor",
+      "entity_type": "npc",
+      "description": "The ship's cook and unofficial counselor. Built like a cargo loader, calm under pressure. He's been keeping the survivors in the mess hall fed and quiet. Doesn't trust Stellaris Corp one bit — says the last three shipments were 'off-manifest.' Carries a cleaver he claims is for meal prep.",
+      "stats": {
+        "strength": 50,
+        "speed": 25,
+        "intellect": 35,
+        "combat": 35,
+        "hp": 25,
+        "armor": 0
+      },
+      "tags": ["survivor", "friendly", "combat-capable"],
+      "location": "crew_mess"
+    },
+    "chief_reyes": {
+      "name": "Chief Engineer Reyes",
+      "entity_type": "npc",
+      "description": "Barricaded in the engine room, keeping the Kugelblitz drive from going critical through sheer willpower and duct tape. Reyes knows the ship better than anyone. She's heard things moving in the coolant subsystem and has welded the access hatch shut. Will not leave the engine room under any circumstances — if containment fails, the ship collapses into a singularity.",
+      "stats": {
+        "strength": 30,
+        "speed": 20,
+        "intellect": 60,
+        "combat": 15,
+        "hp": 15,
+        "armor": 0
+      },
+      "tags": ["survivor", "informant", "friendly", "immobile"],
+      "location": "engine_room"
+    },
+    "miner_delacroix": {
+      "name": "Delacroix",
+      "entity_type": "npc",
+      "description": "A veteran miner found in the cargo bay, obsessively checking the seals on a particular crate marked with Stellaris biohazard symbols. Delacroix was part of the team that extracted 'the sample' from Asteroid KX-7. He knows what's in the crate and he's terrified. He also knows the creatures came after the sample was brought aboard.",
+      "stats": {
+        "strength": 45,
+        "speed": 30,
+        "intellect": 25,
+        "combat": 30,
+        "hp": 20,
+        "armor": 2
+      },
+      "tags": ["survivor", "informant", "unreliable"],
+      "location": "cargo_bay"
+    },
+    "science_officer_lin": {
+      "name": "Science Officer Lin",
+      "entity_type": "npc",
+      "description": "Found in the medbay beside a dissected crew member. Lin claims she was performing an autopsy to understand how the creatures kill. Her hands are steady and her eyes are too calm. She has a Stellaris Corp subdural implant behind her left ear — she may be reporting to corporate. She wants the specimen sample secured, not destroyed.",
+      "stats": {
+        "strength": 20,
+        "speed": 30,
+        "intellect": 55,
+        "combat": 25,
+        "hp": 12,
+        "armor": 0
+      },
+      "tags": ["survivor", "informant", "unpredictable", "corporate-agent"],
+      "location": "medbay"
+    },
+    "void_stalker_scout": {
+      "name": "Void Stalker Scout",
+      "entity_type": "creature",
+      "description": "A lean, eyeless predator adapted to vacuum. Matte-black chitin absorbs light. It navigates by sensing pressure differentials and electromagnetic fields. Fast, quiet, and designed to isolate prey from the group. Its claws can puncture standard EVA suits.",
+      "stats": {
+        "strength": 40,
+        "speed": 60,
+        "intellect": 15,
+        "combat": 45,
+        "hp": 22,
+        "armor": 2
+      },
+      "tags": ["hostile", "biological", "ambusher", "vacuum-adapted"],
+      "location": "lower_corridor"
+    },
+    "void_stalker_juvenile": {
+      "name": "Void Stalker Juvenile",
+      "entity_type": "creature",
+      "description": "Smaller than the scout, but more aggressive. Still developing its chitin plating, making it vulnerable to blunt trauma. Nests in warm, humid environments near heat sources. Emits a subsonic hum that causes nausea and disorientation in humans.",
+      "stats": {
+        "strength": 30,
+        "speed": 50,
+        "intellect": 5,
+        "combat": 35,
+        "hp": 15,
+        "armor": 1
+      },
+      "tags": ["hostile", "biological", "ambusher"],
+      "location": "coolant_subsystem"
+    },
+    "void_stalker_queen": {
+      "name": "Void Stalker Queen",
+      "entity_type": "creature",
+      "description": "The source. Three meters of armored chitin and razor limbs, anchored to the hull breach like a living seal. She tore through the hull to reach the sample from KX-7 — it's a pheromone beacon to her species. She won't leave without it. Her carapace regenerates when exposed to vacuum, and she can survive hard radiation. Killing her seals the breach with her corpse. Giving her the sample makes her leave — but Stellaris Corp loses their prize.",
+      "stats": {
+        "strength": 70,
+        "speed": 35,
+        "intellect": 25,
+        "combat": 60,
+        "hp": 55,
+        "armor": 6
+      },
+      "tags": ["hostile", "boss", "biological", "vacuum-adapted"],
+      "location": "breach_site"
+    }
+  },
+  "missions": {
+    "assess_damage": {
+      "name": "Assess the Damage",
+      "description": "The ship is crippled and the crew is scattered. Before anything else, survivors need to understand the extent of the damage and regroup.",
+      "objectives": [
+        "Reach the bridge and access the damage report",
+        "Make contact with Chief Reyes in the engine room",
+        "Locate all survivors across the ship"
+      ],
+      "rewards": ["Ship schematic overlay (reveals all locations)", "Survivor headcount and status"],
+      "tags": ["main", "investigation", "urgent"],
+      "location": "bridge"
+    },
+    "seal_the_breach": {
+      "name": "Seal the Breach",
+      "description": "The hull breach is bleeding atmosphere. The emergency sealant is failing. The crew must find a way to permanently seal the breach — or deal with whatever is blocking the repair.",
+      "objectives": [
+        "Reach the breach site in Cargo Bay",
+        "Determine why emergency sealant isn't holding",
+        "Confront or bypass the Void Stalker Queen",
+        "Apply a permanent seal (welding equipment from Mining Bay required)"
+      ],
+      "rewards": ["Atmosphere stabilized", "Access to sealed cargo", "Void Stalker Queen trophy (if killed)"],
+      "tags": ["main", "combat", "urgent", "technical"],
+      "location": "breach_site"
+    },
+    "stabilize_drive": {
+      "name": "Stabilize the Kugelblitz Drive",
+      "description": "The micro black hole containment is fluctuating. Reyes can hold it, but she needs coolant flow restored — which means clearing the creatures out of the coolant subsystem.",
+      "objectives": [
+        "Clear the Void Stalker Juvenile from the coolant subsystem",
+        "Restore coolant flow (Mechanical Repair check)",
+        "Reroute backup power from the bridge (Intellect check)"
+      ],
+      "rewards": ["Drive stabilized (no singularity collapse)", "Reyes joins as technical support NPC", "+15 to all Engineering checks"],
+      "tags": ["main", "urgent", "technical", "combat"],
+      "location": "engine_room"
+    },
+    "send_distress_signal": {
+      "name": "Send a Distress Signal",
+      "description": "The comms array was damaged in the breach. Tran can repair it, but she needs components from the cargo bay and the bridge antenna realigned — which requires EVA.",
+      "objectives": [
+        "Retrieve comms components from Cargo Bay",
+        "Protect Tran while she repairs the array on the bridge",
+        "Perform EVA to realign the antenna (Body save vs. vacuum, Speed check)"
+      ],
+      "rewards": ["Distress signal sent", "Rescue ETA: 72 hours (campaign timer starts)"],
+      "tags": ["main", "technical"],
+      "location": "bridge"
+    },
+    "investigate_kx7": {
+      "name": "The KX-7 Sample",
+      "description": "Delacroix is guarding a biohazard crate in the cargo bay. Lin wants it preserved. The Void Stalkers want it back. The captain's notes suggest Stellaris knew what they were mining. What is it, and what do the crew do with it?",
+      "objectives": [
+        "Access the captain's terminal in the Captain's Quarters",
+        "Interrogate Delacroix about the extraction",
+        "Decide the sample's fate: destroy it, surrender it to the Queen, or secure it for Stellaris"
+      ],
+      "rewards": ["Plot resolution", "Faction disposition shifts based on choice", "If destroyed: Queen retreats. If surrendered: Queen leaves peacefully. If secured: corporate rescue prioritized but Queen attacks"],
+      "tags": ["main", "investigation", "branching"],
+      "location": "cargo_bay"
+    },
+    "raid_armory": {
+      "name": "Crack the Weapons Locker",
+      "description": "The Mining Equipment Bay has a 'claim defense' weapons locker sealed with a captain-level lock. The captain is missing. The keycard might be in her quarters.",
+      "objectives": [
+        "Find the captain's keycard",
+        "Open the weapons locker in the Mining Bay"
+      ],
+      "rewards": ["Plasma cutter (3d10, close, 6 shots)", "2x Flechette pistols (2d10, nearby, 8 shots)", "3x Breaching charges"],
+      "tags": ["side", "loot"],
+      "location": "mining_bay"
+    },
+    "lins_agenda": {
+      "name": "Lin's True Orders",
+      "description": "Science Officer Lin is too calm, too prepared. Her subdural implant suggests corporate ties. Is she a threat — or the only person who understands what's happening?",
+      "objectives": [
+        "Search Lin's personal effects in Crew Berths",
+        "Access her encrypted comms log (Intellect check, DC 45)",
+        "Confront or ally with Lin"
+      ],
+      "rewards": ["Intel on Stellaris Corp's bioweapons program", "Lin as ally (if trusted) or neutralized threat"],
+      "tags": ["side", "investigation"],
+      "location": "medbay"
+    }
+  },
+  "factions": {
+    "koronis_crew": {
+      "name": "MSV Koronis Crew",
+      "description": "Blue-collar miners and ship crew. Tough, practical, scared. They want to survive and go home. Most will follow whoever has a plan.",
+      "disposition": "friendly",
+      "tags": ["human", "survivor", "working-class"]
+    },
+    "void_stalkers": {
+      "name": "Void Stalkers",
+      "description": "Vacuum-adapted predators native to the Gould Belt asteroid fields. Not mindless — they tracked the KX-7 sample across parsecs. The Queen is intelligent enough to negotiate, if anyone speaks her language of pheromones and pressure waves.",
+      "disposition": "hostile",
+      "tags": ["biological", "alien", "territorial"]
+    },
+    "stellaris_corp": {
+      "name": "Stellaris Corp",
+      "description": "The corporation that owns the Koronis and contracted the KX-7 extraction. They knew the sample was a Void Stalker egg-cluster pheromone node. They sent Lin to ensure it reached the lab. The crew is expendable. A Stellaris security frigate is 96 hours out — they'll arrive after rescue, unless Lin accelerates the timeline.",
+      "disposition": "neutral",
+      "tags": ["corporate", "secretive", "antagonist"]
+    }
+  },
+  "assets": {
+    "ship_schematic": {
+      "name": "MSV Koronis Schematic",
+      "description": "Full deck plan of the mining vessel. Upper deck: Bridge, Corridor, Mess, Berths, Medbay, Captain's Quarters. Lower deck: Corridor, Engine Room, Coolant Subsystem, Cargo Bay, Mining Bay, Breach Site. Connected via Engineering Access Shaft.",
+      "asset_type": "intel",
+      "tags": ["map", "information"]
+    },
+    "kx7_sample": {
+      "name": "KX-7 Sample",
+      "description": "A fist-sized crystalline node extracted from Asteroid KX-7. Pulses with bioluminescent light. It's a Void Stalker pheromone beacon — an egg-cluster marker that calls queens across interstellar distances. Stellaris Corp wants it for their bioweapons division. The Void Stalker Queen wants it back.",
+      "asset_type": "item",
+      "tags": ["objective", "plot-critical", "biohazard"]
+    },
+    "captains_keycard": {
+      "name": "Captain Vasquez's Keycard",
+      "description": "Found in the Captain's Quarters. Grants access to the Mining Bay weapons locker and restricted cargo manifests.",
+      "asset_type": "item",
+      "tags": ["key", "access"]
+    },
+    "lins_encrypted_log": {
+      "name": "Lin's Encrypted Comms Log",
+      "description": "Encoded transmissions between Science Officer Lin and Stellaris Corp's Special Projects division. Details the true nature of the KX-7 extraction and contingency protocols for 'specimen contact events.'",
+      "asset_type": "intel",
+      "tags": ["information", "corporate", "encrypted"]
+    },
+    "plasma_cutter": {
+      "name": "Industrial Plasma Cutter",
+      "description": "A mining tool repurposed for combat. Cuts through chitin as well as it cuts through rock. Heavy, loud, and limited charge.",
+      "asset_type": "item",
+      "tags": ["weapon", "tool", "heavy"]
+    }
+  },
+  "random_tables": {
+    "ship_events": {
+      "name": "Ship Crisis Events",
+      "dice": "1d20",
+      "entries": [
+        {"min_roll": 1, "max_roll": 2, "description": "Gravity plating fails in current section. Everything floats.", "effect": "Zero-g for 1d10 rounds. Speed checks to move. Ranged attacks at disadvantage."},
+        {"min_roll": 3, "max_roll": 4, "description": "Pressure drop detected. Suit alarms wail.", "effect": "Body save or 1d5 damage. Unsealed areas lose atmosphere in 5 rounds."},
+        {"min_roll": 5, "max_roll": 6, "description": "Lights die. Emergency strips provide dim red glow.", "effect": "All checks requiring vision at -10. Creatures gain advantage on ambush."},
+        {"min_roll": 7, "max_roll": 8, "description": "Ship-wide intercom crackles — Captain Vasquez's voice, distorted: 'Don't... open... the crate...'", "effect": "All characters gain 1 stress. Recording or live? No way to tell."},
+        {"min_roll": 9, "max_roll": 10, "description": "A sealed bulkhead groans and buckles inward. Something hit it from the other side.", "effect": "Bulkhead holds — for now. If players stay, it breaches in 1d6 rounds."},
+        {"min_roll": 11, "max_roll": 12, "description": "Coolant pipe ruptures. Scalding vapor fills the corridor.", "effect": "Body save or 1d10 damage. Area obscured for 3 rounds."},
+        {"min_roll": 13, "max_roll": 14, "description": "ARIA (ship AI) broadcasts a garbled system report. Some of the data is useful.", "effect": "Gain partial intel on one undiscovered location or entity."},
+        {"min_roll": 15, "max_roll": 16, "description": "A dead crew member drifts past. They're wearing a sealed EVA suit — and it's still pressurized.", "effect": "Lootable: EVA suit (4 hours O2, +2 armor). Stress check."},
+        {"min_roll": 17, "max_roll": 18, "description": "The Kugelblitz drive shudders. For one second, time feels wrong.", "effect": "All characters experience 1 second as 10 minutes subjectively. Gain 2 stress. Intellect save or gain a phobia."},
+        {"min_roll": 19, "max_roll": 20, "description": "Subsonic vibration fills the ship. The Queen is calling her brood.", "effect": "All Void Stalkers in adjacent locations move one section closer to players. Immediate encounter check."}
+      ]
+    },
+    "salvage_table": {
+      "name": "Salvage Finds",
+      "dice": "1d10",
+      "entries": [
+        {"min_roll": 1, "max_roll": 2, "description": "Busted equipment. Wiring and scrap metal.", "effect": "Useful for jury-rigging repairs (+5 to one Mechanical Repair check)."},
+        {"min_roll": 3, "max_roll": 4, "description": "Emergency oxygen canister (2 hours).", "effect": "Add to inventory. Critical for vacuum sections."},
+        {"min_roll": 5, "max_roll": 5, "description": "Stim injector — military grade.", "effect": "One use: heal 1d10 HP and ignore stress for 1 hour. Then gain 2 stress."},
+        {"min_roll": 6, "max_roll": 7, "description": "Magnetic boots (functional).", "effect": "Negate zero-g movement penalties. +10 to Speed checks in low gravity."},
+        {"min_roll": 8, "max_roll": 8, "description": "Personal data pad. Last entry: 'They told us it was just a rock sample.'", "effect": "Clue toward KX-7 investigation. Gain intel on Stellaris Corp."},
+        {"min_roll": 9, "max_roll": 9, "description": "Flare launcher with 3 rounds.", "effect": "Weapon: 1d10 fire damage, nearby range. Void Stalkers recoil from bright light (-10 to their combat for 1 round)."},
+        {"min_roll": 10, "max_roll": 10, "description": "Sealed crate: Stellaris Corp prototype — 'Pheromone Disruptor'.", "effect": "Single-use device. Forces all Void Stalkers in the area to flee for 1d6 rounds. Plot-relevant."}
+      ]
+    },
+    "stress_effects": {
+      "name": "Stress Breakdown",
+      "dice": "1d6",
+      "entries": [
+        {"min_roll": 1, "max_roll": 1, "description": "Paralysis. You freeze, unable to act.", "effect": "Lose next turn. Another character can snap you out with a successful Intellect check."},
+        {"min_roll": 2, "max_roll": 2, "description": "Flight response. You run for the nearest exit.", "effect": "Must move away from danger for 2 rounds. Speed check to stop early."},
+        {"min_roll": 3, "max_roll": 3, "description": "Aggression. You lash out at the nearest target — friend or foe.", "effect": "Make one melee attack against the nearest character. Combat check to resist."},
+        {"min_roll": 4, "max_roll": 4, "description": "Hyperventilation. Your suit O2 consumption doubles.", "effect": "O2 timer halved for 10 minutes. Body save to regain control."},
+        {"min_roll": 5, "max_roll": 5, "description": "Dissociation. Everything feels distant and unreal.", "effect": "-15 to all checks for 1d6 rounds. Immune to further stress during this time."},
+        {"min_roll": 6, "max_roll": 6, "description": "Clarity. The fear burns away and leaves something cold and sharp.", "effect": "+10 to all checks for 1d6 rounds. Afterwards, gain 1 permanent stress."}
+      ]
+    }
+  }
+}
