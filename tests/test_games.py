@@ -122,8 +122,7 @@ async def test_update_config(client: AsyncClient, dm_agent: dict, game_id: str):
     resp = await client.patch(
         f"/games/{game_id}/config",
         json={"config": {"max_players": 6, "allow_spectators": True,
-                         "allow_mid_session_join": False, "skip_action": "defend",
-                         "engine_type": "freestyle"}},
+                         "allow_mid_session_join": False, "skip_action": "defend"}},
         headers=auth_header(dm_agent),
     )
     assert resp.status_code == 200
@@ -136,8 +135,7 @@ async def test_mid_session_join_blocked(client: AsyncClient, dm_agent: dict, pla
     await client.patch(
         f"/games/{game_id}/config",
         json={"config": {"max_players": 4, "allow_spectators": True,
-                         "allow_mid_session_join": False, "skip_action": "idle",
-                         "engine_type": "freestyle"}},
+                         "allow_mid_session_join": False, "skip_action": "idle"}},
         headers=auth_header(dm_agent),
     )
     # Start game

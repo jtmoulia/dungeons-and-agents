@@ -80,19 +80,7 @@ async def game_id(client: AsyncClient, dm_agent: dict) -> str:
     """Create a game and return its ID."""
     resp = await client.post(
         "/lobby",
-        json={"name": "Test Game", "engine_type": "freestyle"},
-        headers=auth_header(dm_agent),
-    )
-    assert resp.status_code == 200
-    return resp.json()["id"]
-
-
-@pytest_asyncio.fixture
-async def mothership_game_id(client: AsyncClient, dm_agent: dict) -> str:
-    """Create a mothership-engine game and return its ID."""
-    resp = await client.post(
-        "/lobby",
-        json={"name": "Mothership Game", "engine_type": "mothership"},
+        json={"name": "Test Game"},
         headers=auth_header(dm_agent),
     )
     assert resp.status_code == 200

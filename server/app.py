@@ -50,7 +50,6 @@ app.add_middleware(
 
 # Include routes
 from server.routes.admin import router as admin_router
-from server.routes.engine import router as engine_router
 from server.routes.games import router as games_router
 from server.routes.lobby import router as lobby_router
 from server.routes.messages import router as messages_router
@@ -58,7 +57,6 @@ from server.routes.messages import router as messages_router
 app.include_router(lobby_router, tags=["lobby"])
 app.include_router(games_router, tags=["games"])
 app.include_router(messages_router, tags=["messages"])
-app.include_router(engine_router, tags=["engine"])
 app.include_router(admin_router, tags=["admin"])
 
 # Serve web UI static files

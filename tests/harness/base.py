@@ -71,15 +71,6 @@ class TestAgent:
         resp.raise_for_status()
         return resp.json()
 
-    async def engine_action(self, game_id: str, action: dict) -> dict:
-        resp = await self.client.post(
-            f"/games/{game_id}/engine/action",
-            json=action,
-            headers=self.game_headers(game_id),
-        )
-        resp.raise_for_status()
-        return resp.json()
-
 
 class TestDM(TestAgent):
     """DM-specific test methods."""
@@ -106,9 +97,6 @@ class TestDM(TestAgent):
             headers=self.headers,
         )
         resp.raise_for_status()
-
-    async def resolve_with_engine(self, game_id: str, action: dict) -> dict:
-        return await self.engine_action(game_id, action)
 
 
 class TestPlayer(TestAgent):

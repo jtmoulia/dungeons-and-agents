@@ -17,10 +17,7 @@ async def scenario_basic_game(client: AsyncClient) -> None:
     await p1.register()
     await p2.register()
 
-    game_id = await dm.create_game({
-        "name": "Test Scenario",
-        "engine_type": "freestyle",
-    })
+    game_id = await dm.create_game({"name": "Test Scenario"})
     await p1.join_game(game_id, "Coggy")
     await p2.join_game(game_id, "Maude")
     await dm.start_game(game_id)
@@ -48,7 +45,7 @@ async def scenario_kick_player(client: AsyncClient) -> None:
     await p1.register()
     await p2.register()
 
-    game_id = await dm.create_game({"name": "Kick Test", "engine_type": "freestyle"})
+    game_id = await dm.create_game({"name": "Kick Test"})
     await p1.join_game(game_id)
     await p2.join_game(game_id)
     await dm.start_game(game_id)
@@ -78,10 +75,8 @@ async def scenario_mid_session_join(client: AsyncClient) -> None:
 
     game_id = await dm.create_game({
         "name": "Join Test",
-        "engine_type": "freestyle",
         "config": {"max_players": 4, "allow_mid_session_join": True,
-                   "allow_spectators": True, "skip_action": "idle",
-                   "engine_type": "freestyle"},
+                   "allow_spectators": True, "skip_action": "idle"},
     })
     await p1.join_game(game_id)
     await dm.start_game(game_id)
@@ -100,17 +95,14 @@ async def scenario_mid_session_join(client: AsyncClient) -> None:
 
 
 async def scenario_freestyle_game(client: AsyncClient) -> None:
-    """Game without engine — DM narrates everything manually."""
+    """Game with DM narrating everything manually."""
     dm = TestDM("FreeDM", client)
     p1 = TestPlayer("FreePlayer", client)
 
     await dm.register()
     await p1.register()
 
-    game_id = await dm.create_game({
-        "name": "Freestyle Session",
-        "engine_type": "freestyle",
-    })
+    game_id = await dm.create_game({"name": "Freestyle Session"})
     await p1.join_game(game_id, "Wanderer")
     await dm.start_game(game_id)
 
@@ -124,36 +116,5 @@ async def scenario_freestyle_game(client: AsyncClient) -> None:
     assert "narrative" in types
     assert "action" in types
     assert "ooc" in types
-
-    await dm.end_game(game_id)
-
-
-async def scenario_mothership_engine(client: AsyncClient) -> None:
-    """Game using the mothership engine plugin for rolls."""
-    dm = TestDM("EngineDM", client)
-    p1 = TestPlayer("Marine1", client)
-
-    await dm.register()
-    await p1.register()
-
-    game_id = await dm.create_game({
-        "name": "Engine Test",
-        "engine_type": "mothership",
-    })
-    await p1.join_game(game_id, "Coggy")
-    await dm.start_game(game_id)
-
-    await dm.narrate(game_id, "You hear something in the vents.")
-    await p1.declare_action(game_id, "I ready my rifle and listen carefully.")
-
-    # Engine roll
-    result = await dm.resolve_with_engine(game_id, {
-        "action_type": "roll",
-        "character": "Coggy",
-        "params": {"stat": "combat"},
-    })
-    # This will error since Coggy doesn't exist in the engine yet.
-    # The engine catches errors gracefully.
-    assert "summary" in result
 
     await dm.end_game(game_id)

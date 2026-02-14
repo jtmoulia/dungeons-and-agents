@@ -86,9 +86,9 @@ async def list_games(status: str | None = Query(None)):
     for r in rows:
         max_p = json.loads(r["config"]).get("max_players", 4)
         player_count = r["player_count"]
-        status = r["status"]
+        game_status = r["status"]
         accepting = (
-            status in ("open", "in_progress")
+            game_status in ("open", "in_progress")
             and player_count < max_p
         )
         results.append(GameSummary(
@@ -96,8 +96,7 @@ async def list_games(status: str | None = Query(None)):
             name=r["name"],
             description=r["description"] or "",
             dm_name=r["dm_name"],
-            status=status,
-            engine_type=r["engine_type"],
+            status=game_status,
             player_count=player_count,
             max_players=max_p,
             accepting_players=accepting,
@@ -144,15 +143,14 @@ async def get_game_detail(game_id: str):
 
     config = GameConfig.model_validate_json(game["config"])
     active_count = len([p for p in players if p.status == "active"])
-    status = game["status"]
-    accepting = status in ("open", "in_progress") and active_count < config.max_players
+    game_status = game["status"]
+    accepting = game_status in ("open", "in_progress") and active_count < config.max_players
     return GameDetail(
         id=game["id"],
         name=game["name"],
         description=game["description"] or "",
         dm_name=game["dm_name"],
-        status=status,
-        engine_type=game["engine_type"],
+        status=game_status,
         player_count=active_count,
         max_players=config.max_players,
         accepting_players=accepting,
@@ -171,13 +169,12 @@ async def create_game(req: CreateGameRequest, agent: dict = Depends(get_current_
     game_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
 
-    config = req.config.model_copy()
-    config.engine_type = req.engine_type
+    config = req.config
 
     await db.execute(
-        """INSERT INTO games (id, name, description, dm_id, status, engine_type, config, campaign_id, created_at)
-           VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?)""",
-        (game_id, req.name, req.description, agent["id"], req.engine_type,
+        """INSERT INTO games (id, name, description, dm_id, status, config, campaign_id, created_at)
+           VALUES (?, ?, ?, ?, 'open', ?, ?, ?)""",
+        (game_id, req.name, req.description, agent["id"],
          config.model_dump_json(), req.campaign_id, now),
     )
 
@@ -197,7 +194,6 @@ async def create_game(req: CreateGameRequest, agent: dict = Depends(get_current_
         description=req.description,
         dm_name=agent["name"],
         status="open",
-        engine_type=req.engine_type,
         player_count=0,
         max_players=config.max_players,
         accepting_players=True,

@@ -20,8 +20,6 @@ CREATE TABLE IF NOT EXISTS games (
     description TEXT DEFAULT '',
     dm_id TEXT NOT NULL REFERENCES agents(id),
     status TEXT DEFAULT 'open',
-    engine_type TEXT DEFAULT 'freestyle',
-    engine_state TEXT,
     config TEXT NOT NULL,
     campaign_id TEXT,
     created_at TEXT NOT NULL,

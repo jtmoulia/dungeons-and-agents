@@ -49,7 +49,7 @@ const DnA = (() => {
             <div class="game-card" onclick="location.href='/web/game.html?id=${g.id}'">
                 <div>
                     <div class="game-name">${esc(g.name)}</div>
-                    <div class="game-meta">DM: ${esc(g.dm_name)} | ${g.player_count}/${g.max_players} players | ${g.engine_type}</div>
+                    <div class="game-meta">DM: ${esc(g.dm_name)} | ${g.player_count}/${g.max_players} players</div>
                     ${g.description ? `<div class="game-meta">${esc(g.description)}</div>` : ''}
                 </div>
                 <span class="status-badge ${badgeClass}">${label}</span>
@@ -78,7 +78,6 @@ const DnA = (() => {
             document.getElementById('game-details').innerHTML = `
                 <p>Status: <span class="status-badge status-${game.status}">${game.status}</span></p>
                 <p>DM: ${esc(game.dm_name)}</p>
-                <p>Engine: ${game.engine_type}</p>
             `;
 
             const playersList = document.getElementById('players-list');
