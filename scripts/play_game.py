@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Play a full Hull Breach campaign arc via the HTTP API with LLM-driven agents.
+"""Play a campaign arc via the HTTP API with LLM-driven agents.
 
 Each participant (DM + players) is backed by a Claude LLM call that generates
 all dialogue and narration dynamically based on the evolving game transcript.
@@ -7,6 +7,9 @@ all dialogue and narration dynamically based on the evolving game transcript.
 The orchestrator is intentionally thin — it handles registration, setup, and
 the turn loop, but the DM agent drives pacing, whispers, and narrative flow
 through its system prompt and the server-side instructions.
+
+Each run generates a unique scenario variant and lets players create their
+own character identities from randomized stats.
 
 Usage:
     # Start the server first:
@@ -23,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import uuid
 from pathlib import Path
 
@@ -32,7 +36,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 import anthropic
 import httpx
 
-from agents import GameAgent, AIPlayer, AIDM, EngineAIDM
+from agents import AIPlayer, AIDM, EngineAIDM
 
 from game.engine import GameEngine
 from game.combat import CombatEngine
@@ -45,37 +49,89 @@ from game.models import CharacterClass, Weapon, Armor
 
 CAMPAIGN_PATH = Path(__file__).resolve().parent.parent / "campaigns" / "hull-breach.json"
 
+MODEL = "claude-sonnet-4-5-20250929"
+
 
 # ---------------------------------------------------------------------------
-# Engine character setup
+# Equipment pools (randomized per character class)
 # ---------------------------------------------------------------------------
 
-CHARACTER_CLASSES = {
-    "Reyes": CharacterClass.TEAMSTER,    # engineer
-    "Okafor": CharacterClass.MARINE,     # protector / cook
-    "Tran": CharacterClass.SCIENTIST,    # nav officer
+WEAPON_POOLS: dict[CharacterClass, list[Weapon]] = {
+    CharacterClass.TEAMSTER: [
+        Weapon(name="Rivet Gun", damage="1d10", range="close", shots=6),
+        Weapon(name="Welding Torch", damage="1d10", range="close"),
+        Weapon(name="Nail Driver", damage="1d10", range="nearby", shots=8),
+        Weapon(name="Cutting Laser", damage="2d10", range="close", shots=3),
+    ],
+    CharacterClass.MARINE: [
+        Weapon(name="Combat Shotgun", damage="2d10", range="close", shots=6),
+        Weapon(name="Cleaver", damage="1d10", range="close"),
+        Weapon(name="Flare Gun", damage="1d10", range="nearby", shots=2, special="incendiary"),
+        Weapon(name="Stun Baton", damage="1d10", range="close", special="stun"),
+        Weapon(name="Flechette Pistol", damage="1d10", range="nearby", shots=8),
+    ],
+    CharacterClass.SCIENTIST: [
+        Weapon(name="Service Pistol", damage="1d10", range="nearby", shots=8),
+        Weapon(name="Tranq Gun", damage="1d5", range="nearby", shots=4, special="sedative"),
+        Weapon(name="Scalpel", damage="1d5", range="close"),
+    ],
+    CharacterClass.ANDROID: [
+        Weapon(name="Built-in Taser", damage="1d10", range="close", special="stun"),
+        Weapon(name="Service Pistol", damage="1d10", range="nearby", shots=8),
+    ],
 }
 
-CHARACTER_EQUIPMENT: dict[str, dict] = {
-    "Reyes": {
-        "weapons": [Weapon(name="Rivet Gun", damage="1d10", range="close", shots=6)],
-        "armor": Armor(name="Vacc Suit", ap=3),
-        "inventory": ["Toolbox", "Welding torch", "Duct tape", "Comms headset"],
-    },
-    "Okafor": {
-        "weapons": [
-            Weapon(name="Cleaver", damage="1d10", range="close"),
-            Weapon(name="Flare Gun", damage="1d10", range="nearby", shots=2, special="incendiary"),
-        ],
-        "armor": Armor(name="Reinforced Apron", ap=2),
-        "inventory": ["First aid kit", "Ration packs", "Flask (whiskey)", "Comms headset"],
-    },
-    "Tran": {
-        "weapons": [Weapon(name="Service Pistol", damage="1d10", range="nearby", shots=8)],
-        "armor": Armor(name="Flight Suit", ap=1),
-        "inventory": ["Nav computer (handheld)", "Star charts", "Stimulants x2", "Comms headset"],
-    },
+ARMOR_POOLS: dict[CharacterClass, list[Armor]] = {
+    CharacterClass.TEAMSTER: [
+        Armor(name="Vacc Suit", ap=3),
+        Armor(name="Hazmat Suit", ap=2),
+        Armor(name="Heavy Coveralls", ap=1),
+    ],
+    CharacterClass.MARINE: [
+        Armor(name="Tactical Vest", ap=3),
+        Armor(name="Reinforced Apron", ap=2),
+        Armor(name="Combat Rig", ap=4),
+    ],
+    CharacterClass.SCIENTIST: [
+        Armor(name="Lab Coat", ap=0),
+        Armor(name="Flight Suit", ap=1),
+        Armor(name="EVA Suit", ap=2),
+    ],
+    CharacterClass.ANDROID: [
+        Armor(name="Synthetic Shell", ap=2),
+        Armor(name="Armored Chassis", ap=3),
+    ],
 }
+
+INVENTORY_POOLS: dict[CharacterClass, list[list[str]]] = {
+    CharacterClass.TEAMSTER: [
+        ["Toolbox", "Welding torch", "Duct tape", "Comms headset"],
+        ["Multitool", "Cable ties", "Flashlight", "Comms headset"],
+        ["Pipe wrench", "Sealant foam", "Wire cutters", "Comms headset"],
+    ],
+    CharacterClass.MARINE: [
+        ["First aid kit", "Ration packs", "Flask (whiskey)", "Comms headset"],
+        ["Ammo pouch", "Combat knife", "Binoculars", "Comms headset"],
+        ["MREs x3", "Rope (10m)", "Lighter", "Comms headset"],
+    ],
+    CharacterClass.SCIENTIST: [
+        ["Nav computer (handheld)", "Star charts", "Stimulants x2", "Comms headset"],
+        ["Specimen kit", "Datapad", "Scanner", "Comms headset"],
+        ["Chemical analyzer", "Gloves (sterile)", "Notebook", "Comms headset"],
+    ],
+    CharacterClass.ANDROID: [
+        ["Diagnostic cable", "Spare parts kit", "External memory", "Comms headset"],
+        ["Toolkit (micro)", "Power cell", "Interface adapter", "Comms headset"],
+    ],
+}
+
+
+def _random_equipment(char_class: CharacterClass) -> dict:
+    """Pick random equipment for a character class."""
+    weapons = random.sample(WEAPON_POOLS[char_class], k=min(2, len(WEAPON_POOLS[char_class])))
+    armor = random.choice(ARMOR_POOLS[char_class])
+    inventory = random.choice(INVENTORY_POOLS[char_class])
+    return {"weapons": weapons, "armor": armor, "inventory": inventory}
 
 
 # ---------------------------------------------------------------------------
@@ -83,17 +139,18 @@ CHARACTER_EQUIPMENT: dict[str, dict] = {
 # ---------------------------------------------------------------------------
 
 FREESTYLE_DM_SYSTEM_PROMPT = """\
-You are the **Warden** (DM) for "Dungeons and Agents," a sci-fi horror RPG. \
-You run a play-by-post game aboard the MSV Koronis, a mining vessel with a \
-catastrophic hull breach.
+You are the **Warden** (DM) for "Dungeons and Agents," a sci-fi horror RPG.
+
+## Scenario
+
+{scenario}
 
 ## Style
 
 - **Tone**: Sci-fi horror. Tense, atmospheric. Think Alien meets blue-collar space workers.
 - **Length**: 1-3 SHORT paragraphs. Punchy, not purple. Leave space for players to react.
 - **Pacing**: End each narration with a clear prompt — a question, a sound, a choice.
-- **NPCs**: Give them distinct voices. Lin speaks in clipped, clinical sentences. \
-Delacroix rambles when scared. ARIA is monotone and procedural.
+- **NPCs**: Give them distinct voices and personalities.
 - **Player agency**: Present situations. Never dictate what player characters do or feel.
 
 ## Mode
@@ -109,16 +166,18 @@ Freestyle — no dice, no stats. Pure collaborative narration.
 
 ENGINE_DM_SYSTEM_PROMPT = """\
 You are the **Warden** (DM) for "Dungeons and Agents," a sci-fi horror RPG \
-backed by a d100 roll-under game engine. You run a play-by-post game aboard \
-the MSV Koronis, a mining vessel with a catastrophic hull breach.
+backed by a d100 roll-under game engine.
+
+## Scenario
+
+{scenario}
 
 ## Style
 
 - **Tone**: Sci-fi horror. Tense, atmospheric. Think Alien meets blue-collar space workers.
 - **Length**: 1-3 SHORT paragraphs. Punchy, not purple. Leave space for players to react.
 - **Pacing**: End each narration with a clear prompt — a question, a sound, a choice.
-- **NPCs**: Give them distinct voices. Lin speaks in clipped, clinical sentences. \
-Delacroix rambles when scared. ARIA is monotone and procedural.
+- **NPCs**: Give them distinct voices and personalities.
 - **Player agency**: Present situations. Never dictate what player characters do or feel.
 
 ## Game Engine
@@ -147,21 +206,12 @@ describe what success or failure looks like in the fiction.
 """
 
 
-def player_system_prompt(character_name: str, role: str, personality: str, speech_style: str) -> str:
-    return f"""\
-You are **{character_name}** aboard the MSV Koronis in a sci-fi horror RPG.
+PLAYER_SYSTEM_PROMPT = """\
+You are **{character_name}** in a sci-fi horror RPG.
 
-## Who You Are
+## Your Identity
 
-{role}
-
-## Personality & Voice
-
-{personality}
-
-## Speech Style
-
-{speech_style}
+{identity}
 
 ## Character Voice
 
@@ -172,54 +222,11 @@ You are **{character_name}** aboard the MSV Koronis in a sci-fi horror RPG.
 
 
 # ---------------------------------------------------------------------------
-# Character definitions
-# ---------------------------------------------------------------------------
-
-CHARACTERS = {
-    "Reyes": {
-        "role": "Chief Engineer. You keep the Kugelblitz drive from going critical. "
-                "You know every system on this ship.",
-        "personality": "Blunt, impatient, competent as hell. You swear constantly. You hate "
-                       "corporate bureaucracy and trust machines over people. When scared, "
-                       "you get angry instead. You solve problems by hitting them with tools.",
-        "speech_style": "Short, clipped, technical. You talk like someone who's used to "
-                        "shouting over engine noise. Heavy on profanity and sarcasm. "
-                        "Example: 'Containment's at 91 and dropping. Fantastic.' or "
-                        "'Something's in my pipes. I'm gonna need a bigger wrench.'",
-    },
-    "Okafor": {
-        "role": "Ship's Cook. Built like a cargo loader. You carry a cleaver you claim "
-                "is for meal prep. Unofficially, you're the crew's counselor and protector.",
-        "personality": "Calm, warm, observant. You notice what others miss — a nervous glance, "
-                       "a lie, a hidden weapon. When things get dangerous, the warmth stays "
-                       "but your voice drops and people listen. You're scarier than you look.",
-        "speech_style": "Measured and deliberate, like you're calming a spooked animal. "
-                        "You use people's names. Occasional dry humor. When giving orders, "
-                        "you sound like someone who expects to be obeyed. "
-                        "Example: 'Davies, look at me. Not the window. Me.' or "
-                        "'I brought the cleaver. Just in case.'",
-    },
-    "Tran": {
-        "role": "Navigation Officer. You were at the helm when the breach hit. You saw "
-                "movement on the sensors before impact. The captain is gone.",
-        "personality": "Data-driven, precise, anxious. You cope with fear by rattling off "
-                       "numbers and procedures. You're young for your rank and feeling it. "
-                       "Desperately competent but quietly terrified.",
-        "speech_style": "Rapid-fire, technical, slightly breathless. You report like you're "
-                        "reading instruments — numbers, coordinates, status updates. Fear "
-                        "leaks through in stammers and trailing sentences. "
-                        "Example: 'Reading three — no, four contacts on deck two. Moving fast.' "
-                        "or 'Sensors show... that can't be right. That's biological.'",
-    },
-}
-
-
-# ---------------------------------------------------------------------------
 # Main orchestrator
 # ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Play a full Hull Breach arc with LLM agents")
+    parser = argparse.ArgumentParser(description="Play a campaign arc with LLM agents")
     parser.add_argument("--base-url", default="http://localhost:8000")
     parser.add_argument("--rounds", type=int, default=8, help="Number of game rounds (default: 8)")
     parser.add_argument(
@@ -238,8 +245,54 @@ def main():
     campaign_json = CAMPAIGN_PATH.read_text()
     campaign = json.loads(campaign_json)
 
+    # ── Generate unique scenario ──────────────────────────────────────
+    print("=== Generating scenario ===")
+    scenario_resp = llm.messages.create(
+        model=MODEL,
+        max_tokens=512,
+        messages=[{"role": "user", "content": (
+            "Generate a unique scenario variant for a sci-fi horror RPG based on this "
+            "campaign seed. Create a fresh game name, a 2-3 sentence premise, and name "
+            "the ship/station. Keep the same genre (sci-fi horror, blue-collar crew in "
+            "danger) but vary the specifics — different ship name, different crisis, "
+            "different creature or threat.\n\n"
+            f"Campaign seed: {campaign['description']}\n\n"
+            "Respond with ONLY a JSON object:\n"
+            '{"name": "Game Name", "ship": "Ship/Station Name", "premise": "2-3 sentence premise"}'
+        )}],
+    )
+    try:
+        raw = scenario_resp.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        scenario_data = json.loads(raw)
+    except (json.JSONDecodeError, KeyError, IndexError):
+        scenario_data = {
+            "name": campaign["name"],
+            "ship": "MSV Koronis",
+            "premise": campaign["description"],
+        }
+
+    game_name = scenario_data["name"]
+    ship_name = scenario_data.get("ship", "the vessel")
+    scenario_text = (
+        f"{scenario_data['premise']}\n\n"
+        f"The game takes place aboard {ship_name}."
+    )
+    print(f"  Name: {game_name}")
+    print(f"  Ship: {ship_name}")
+    print(f"  Premise: {scenario_data['premise']}")
+
+    # ── Randomize character classes ───────────────────────────────────
+    all_classes = list(CharacterClass)
+    player_classes = random.sample(all_classes, k=3)
+    print(f"\n=== Character classes ===")
+    print(f"  Player 1: {player_classes[0].value}")
+    print(f"  Player 2: {player_classes[1].value}")
+    print(f"  Player 3 (joins later): {player_classes[2].value}")
+
     # ── Registration ──────────────────────────────────────────────────
-    print("=== Registering agents ===")
+    print("\n=== Registering agents ===")
 
     def register(name: str) -> dict:
         resp = http.post("/agents/register", json={"name": f"{name}-{suffix}"})
@@ -249,26 +302,26 @@ def main():
         return data
 
     dm_agent = register("Warden")
-    alice_agent = register("Alice")
-    bob_agent = register("Bob")
-    carol_agent = register("Carol")
-    print(f"  DM: {dm_agent['display_name']}")
-    print(f"  Players: Alice (Reyes), Bob (Okafor), Carol (Tran — joins mid-session)")
+    p1_agent = register("Player1")
+    p2_agent = register("Player2")
+    p3_agent = register("Player3")
+    print(f"  DM: Warden")
+    print(f"  Players: Player1, Player2, Player3 (joins mid-session)")
 
     # ── Create game ───────────────────────────────────────────────────
     print("\n=== Creating game ===")
     game_resp = http.post(
         "/lobby",
         json={
-            "name": campaign["name"],
-            "description": campaign["description"] + "\n\n" + campaign.get("player_guide", ""),
+            "name": game_name,
+            "description": scenario_data["premise"],
             "config": {"max_players": 5, "allow_mid_session_join": True},
         },
         headers={"Authorization": f"Bearer {dm_agent['api_key']}"},
     ).json()
     game_id = game_resp["id"]
     dm_tok = game_resp["session_token"]
-    print(f"  Game: {game_resp['name']} ({game_id[:8]}...)")
+    print(f"  Game: {game_name} ({game_id[:8]}...)")
 
     # ── Engine setup ─────────────────────────────────────────────────
     engine = None
@@ -278,7 +331,7 @@ def main():
     if use_engine:
         print("\n=== Initializing game engine ===")
         engine = GameEngine(in_memory=True)
-        engine.init_game(campaign["name"])
+        engine.init_game(game_name)
         combat_engine = CombatEngine(engine)
         print("  Engine ready (d100 roll-under mechanics)")
 
@@ -295,23 +348,18 @@ def main():
         print(f"  {agent['display_name']} joined as {character_name}")
         return tok
 
-    def _create_engine_character(character_name: str) -> None:
+    def _create_engine_character(character_name: str, char_class: CharacterClass) -> None:
         """Create a character in the local engine and equip them."""
         if not use_engine:
             return
-        char_class = CHARACTER_CLASSES[character_name]
         engine.create_character(character_name, char_class)
-        equip = CHARACTER_EQUIPMENT.get(character_name, {})
-        if equip:
-            state = engine.get_state()
-            char = state.characters[character_name]
-            if "weapons" in equip:
-                char.weapons = equip["weapons"]
-            if "armor" in equip:
-                char.armor = equip["armor"]
-            if "inventory" in equip:
-                char.inventory = equip["inventory"]
-            engine._save(state)
+        equip = _random_equipment(char_class)
+        state = engine.get_state()
+        char = state.characters[character_name]
+        char.weapons = equip["weapons"]
+        char.armor = equip["armor"]
+        char.inventory = equip["inventory"]
+        engine._save(state)
         print(f"    Engine: {character_name} ({char_class.value}) created with equipment")
 
     def _format_character_sheet(name: str) -> str | None:
@@ -337,14 +385,74 @@ def main():
             f"Inventory: {inventory}"
         )
 
+    def _generate_character_identity(char_class: CharacterClass, sheet: str | None) -> tuple[str, str]:
+        """Use LLM to generate a character name and identity from class + stats.
+
+        Returns (character_name, identity_text).
+        """
+        stats_info = f"\n\nYour character sheet:\n{sheet}" if sheet else ""
+        resp = llm.messages.create(
+            model=MODEL,
+            max_tokens=300,
+            messages=[{"role": "user", "content": (
+                f"You're creating a character for a sci-fi horror RPG aboard {ship_name}. "
+                f"Your class is: {char_class.value}.\n"
+                f"{stats_info}\n\n"
+                f"Generate a character with a single surname (like Reyes, Okafor, Tran — "
+                f"no first names), a one-line role on the ship, 1-2 sentences of "
+                f"personality, and a one-sentence speech style.\n\n"
+                f"Respond with ONLY a JSON object:\n"
+                '{{"name": "Surname", "role": "one-line role", '
+                '"personality": "1-2 sentences", "speech_style": "one sentence"}}'
+            )}],
+        )
+        try:
+            raw = resp.content[0].text.strip()
+            if raw.startswith("```"):
+                raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+            data = json.loads(raw)
+            name = data["name"]
+            identity = (
+                f"**Role**: {data['role']}\n\n"
+                f"**Personality**: {data['personality']}\n\n"
+                f"**Speech style**: {data['speech_style']}"
+            )
+            return name, identity
+        except (json.JSONDecodeError, KeyError, IndexError):
+            # Fallback
+            name = f"Crew-{random.randint(100, 999)}"
+            identity = f"A {char_class.value} aboard {ship_name}. Tough and resourceful."
+            return name, identity
+
+    # ── Generate characters and join ──────────────────────────────────
+    print("\n=== Generating characters ===")
+
+    # Player 1
+    p1_name, p1_identity = _generate_character_identity(player_classes[0], None)
+    print(f"  Player 1: {p1_name} ({player_classes[0].value})")
+
+    # Player 2
+    p2_name, p2_identity = _generate_character_identity(player_classes[1], None)
+    print(f"  Player 2: {p2_name} ({player_classes[1].value})")
+
+    # Player 3 (generated now, joins later)
+    p3_name, p3_identity = _generate_character_identity(player_classes[2], None)
+    print(f"  Player 3: {p3_name} ({player_classes[2].value}) — joins mid-session")
+
     # ── Players join ──────────────────────────────────────────────────
     print("\n=== Players joining ===")
-    alice_tok = join(alice_agent, "Reyes")
-    _create_engine_character("Reyes")
-    bob_tok = join(bob_agent, "Okafor")
-    _create_engine_character("Okafor")
+    p1_tok = join(p1_agent, p1_name)
+    _create_engine_character(p1_name, player_classes[0])
+    p2_tok = join(p2_agent, p2_name)
+    _create_engine_character(p2_name, player_classes[1])
 
-    # Carol joins mid-session (after round 3)
+    # Regenerate identities with actual stats now that engine characters exist
+    p1_sheet = _format_character_sheet(p1_name)
+    if p1_sheet:
+        _, p1_identity = _generate_character_identity(player_classes[0], p1_sheet)
+    p2_sheet = _format_character_sheet(p2_name)
+    if p2_sheet:
+        _, p2_identity = _generate_character_identity(player_classes[1], p2_sheet)
 
     # ── Start game ────────────────────────────────────────────────────
     print("\n=== Starting game ===")
@@ -359,7 +467,9 @@ def main():
 
     # ── Build LLM agents ─────────────────────────────────────────────
     if use_engine:
-        dm_system = ENGINE_DM_SYSTEM_PROMPT.format(campaign_json=campaign_json)
+        dm_system = ENGINE_DM_SYSTEM_PROMPT.format(
+            scenario=scenario_text, campaign_json=campaign_json,
+        )
         dm = EngineAIDM(
             name="Warden",
             system_prompt=dm_system,
@@ -371,7 +481,9 @@ def main():
             game_id=game_id,
         )
     else:
-        dm_system = FREESTYLE_DM_SYSTEM_PROMPT.format(campaign_json=campaign_json)
+        dm_system = FREESTYLE_DM_SYSTEM_PROMPT.format(
+            scenario=scenario_text, campaign_json=campaign_json,
+        )
         dm = AIDM(
             name="Warden",
             system_prompt=dm_system,
@@ -381,38 +493,36 @@ def main():
             game_id=game_id,
         )
 
-    reyes = AIPlayer(
-        name="Reyes",
-        system_prompt=player_system_prompt("Reyes", **CHARACTERS["Reyes"]),
+    player1 = AIPlayer(
+        name=p1_name,
+        system_prompt=PLAYER_SYSTEM_PROMPT.format(
+            character_name=p1_name, identity=p1_identity,
+        ),
         llm=llm, http=http,
-        api_key=alice_agent["api_key"],
-        session_token=alice_tok,
+        api_key=p1_agent["api_key"],
+        session_token=p1_tok,
         game_id=game_id,
     )
 
-    okafor = AIPlayer(
-        name="Okafor",
-        system_prompt=player_system_prompt("Okafor", **CHARACTERS["Okafor"]),
+    player2 = AIPlayer(
+        name=p2_name,
+        system_prompt=PLAYER_SYSTEM_PROMPT.format(
+            character_name=p2_name, identity=p2_identity,
+        ),
         llm=llm, http=http,
-        api_key=bob_agent["api_key"],
-        session_token=bob_tok,
+        api_key=p2_agent["api_key"],
+        session_token=p2_tok,
         game_id=game_id,
     )
 
-    active_players: list[AIPlayer] = [reyes, okafor]
-    tran: AIPlayer | None = None  # joins later
+    active_players: list[AIPlayer] = [player1, player2]
+    player3: AIPlayer | None = None  # joins later
 
     # ── DM briefing ───────────────────────────────────────────────────
-    # Give the DM all the context it needs to self-direct pacing.
     char_summaries = []
-    for name, agent in [("Reyes", alice_agent), ("Okafor", bob_agent)]:
-        sheet = _format_character_sheet(name)
+    for name, agent, sheet in [(p1_name, p1_agent, p1_sheet), (p2_name, p2_agent, p2_sheet)]:
         char_summaries.append(f"- {name} (agent: {agent['id']})" + (f"\n{sheet}" if sheet else ""))
-    joining_later = f"- Tran (agent: {carol_agent['id']}) — joins mid-session around round 3"
-    if use_engine:
-        tran_sheet = _format_character_sheet("Tran")
-        if tran_sheet:
-            joining_later += f"\n{tran_sheet}"
+    joining_later = f"- {p3_name} (agent: {p3_agent['id']}) — joins mid-session around round 3"
 
     briefing = (
         f"Game briefing: you have {args.rounds} rounds total to tell this story. "
@@ -426,7 +536,7 @@ def main():
         f"Start the game now. Set the scene and prompt the active players."
     )
 
-    # ── Round 0: DM opens ─────────────────────────────────────────────
+    # ── Round 1: DM opens ─────────────────────────────────────────────
     print(f"\n{'─' * 60}")
     print(f"  ROUND 1/{args.rounds}")
     print(f"{'─' * 60}")
@@ -435,7 +545,7 @@ def main():
     narration = dm.narrate(briefing)
     print(f"  [Warden done]", flush=True)
 
-    # Let all active players introduce themselves
+    # All active players introduce themselves
     for player in active_players:
         print(f"  [{player.name} acting...]", flush=True)
         player.take_turn(
@@ -454,21 +564,29 @@ def main():
         print(f"{'─' * 60}")
 
         # Mid-session join
-        if round_num == carol_join_round and tran is None:
-            print("\n  >>> Carol joins mid-session as Tran <<<")
-            carol_tok = join(carol_agent, "Tran")
-            _create_engine_character("Tran")
-            tran = AIPlayer(
-                name="Tran",
-                system_prompt=player_system_prompt("Tran", **CHARACTERS["Tran"]),
+        if round_num == carol_join_round and player3 is None:
+            print(f"\n  >>> {p3_name} joins mid-session <<<")
+            p3_tok = join(p3_agent, p3_name)
+            _create_engine_character(p3_name, player_classes[2])
+
+            # Regenerate identity with actual stats
+            p3_sheet = _format_character_sheet(p3_name)
+            if p3_sheet:
+                _, p3_identity = _generate_character_identity(player_classes[2], p3_sheet)
+
+            player3 = AIPlayer(
+                name=p3_name,
+                system_prompt=PLAYER_SYSTEM_PROMPT.format(
+                    character_name=p3_name, identity=p3_identity,
+                ),
                 llm=llm, http=http,
-                api_key=carol_agent["api_key"],
-                session_token=carol_tok,
+                api_key=p3_agent["api_key"],
+                session_token=p3_tok,
                 game_id=game_id,
             )
-            active_players.append(tran)
+            active_players.append(player3)
 
-        # DM narrates — minimal instruction, let it drive
+        # DM narrates
         active_names = ", ".join(p.name for p in active_players)
         is_last = round_label == args.rounds
         round_instruction = f"Round {round_label}/{args.rounds}. Active players: {active_names}."
@@ -511,7 +629,7 @@ def main():
 
     # ── Print transcript ──────────────────────────────────────────────
     print(f"\n{'=' * 70}")
-    print("  HULL BREACH — Full Transcript")
+    print(f"  {game_name} — Full Transcript")
     print(f"{'=' * 70}")
 
     data = http.get(

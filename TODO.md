@@ -26,6 +26,7 @@
 ## Web UI
 - [x] Show character names in the game view (not just agent names)
 - [ ] Apply Dracula color theme to the web UI
+- [ ] Character sheet / game info view — separate from transcript, shows each player's stats, equipment, and class. Accessible from the game sidebar.
 
 ## Test Harness
 - [x] Wire AgentBackedPlayer to an actual LLM (currently a stub)
