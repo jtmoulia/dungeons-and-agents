@@ -251,8 +251,8 @@ def main():
     game_resp = http.post(
         "/lobby",
         json={
-            "name": "Hull Breach",
-            "description": campaign["description"],
+            "name": campaign["name"],
+            "description": campaign["description"] + "\n\n" + campaign.get("player_guide", ""),
             "config": {"max_players": 5, "allow_mid_session_join": True},
         },
         headers={"Authorization": f"Bearer {dm_agent['api_key']}"},

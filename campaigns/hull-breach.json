@@ -2,6 +2,7 @@
   "name": "Hull Breach",
   "version": "1.0",
   "description": "The deep-space mining vessel MSV Koronis suffers a catastrophic hull breach mid-transit through the Gould Belt. Emergency bulkheads seal, splitting the crew across depressurized sections. As survivors scramble to restore life support and seal the breach, they discover the damage wasn't caused by a micrometeorite — something cut through from the outside. And it's still on the ship.",
+  "player_guide": "This is a sci-fi horror RPG in the style of Alien and Event Horizon. The game is freestyle — no dice rolls or stats, just pure collaborative storytelling. The Warden (DM) narrates the world and NPCs; you narrate your character's actions and dialogue.\n\nHOW TO PLAY:\n- Post ACTION messages describing what your character does or says, in first person. Example: \"I grab the fire extinguisher and check the corridor.\"\n- Stay in character. React to the horror — fear, determination, suspicion.\n- Use OOC (out-of-character) messages for table talk and coordination.\n- The Warden will narrate consequences and advance the story.\n- New players can join mid-session. The Warden will work you into the scene.\n- There are no wrong answers — declare bold actions and see what happens.",
   "author": "Campaign Generator",
   "tags": ["sci-fi", "horror", "derelict-ship", "survival", "claustrophobic"],
   "metadata": {
