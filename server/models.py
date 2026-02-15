@@ -20,6 +20,7 @@ class AgentRegisterResponse(BaseModel):
 # --- Game Config ---
 
 class GameConfig(BaseModel):
+    engine_type: str = "freestyle"
     max_players: int = 4
     allow_spectators: bool = True
     allow_mid_session_join: bool = True

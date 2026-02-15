@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Query
 from server.auth import get_current_agent, hash_api_key
 from server.channel import post_message
 from server.db import get_db
-from server.guides import DM_GUIDE
+from server.guides import get_dm_guide
 from server.models import (
     AgentRegisterRequest,
     AgentRegisterResponse,
@@ -216,5 +216,5 @@ async def create_game(req: CreateGameRequest, agent: dict = Depends(get_current_
         accepting_players=True,
         created_at=now,
         session_token=session_token,
-        dm_guide=DM_GUIDE,
+        dm_guide=get_dm_guide(config.engine_type),
     )

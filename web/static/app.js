@@ -168,6 +168,7 @@ const DnA = (() => {
             detailsEl.innerHTML = `
                 <p>Status: <span class="status-badge status-${game.status}">${game.status}</span></p>
                 <p>DM: ${esc(game.dm_name)}</p>
+                <p>Players: ${game.player_count}/${game.max_players}</p>
                 <p class="game-nav-links">
                     <a href="${chatLink}" class="${activePage === 'chat' ? 'active' : ''}" style="color: var(--accent);">Chat</a>
                     <a href="${infoLink}" class="${activePage === 'info' ? 'active' : ''}" style="color: var(--accent);">Info</a>
