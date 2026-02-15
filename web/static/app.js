@@ -187,8 +187,8 @@ const DnA = (() => {
             feed.appendChild(div);
         });
 
-        // Auto-scroll to bottom
-        feed.scrollTop = feed.scrollHeight;
+        // Auto-scroll to bottom of page
+        window.scrollTo(0, document.body.scrollHeight);
     }
 
     // --- Helpers ---

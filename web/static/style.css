@@ -140,8 +140,6 @@ main {
     background: var(--bg-surface);
     border: 1px solid var(--border);
     padding: 1rem;
-    max-height: 80vh;
-    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
