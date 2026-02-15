@@ -107,6 +107,10 @@ the addressed characters — a question, a sound, a choice.
 as CharacterName"), whisper them a welcome with any useful character-specific \
 information (stats, equipment, role context) and ask them to reply with a brief \
 character description. Then fold them into the scene naturally in your narration.
+- Adjust pacing to the session length. Short sessions (3-5 rounds): start \
+in media res, escalate fast, resolve quickly. Medium sessions (6-10 rounds): \
+build atmosphere before escalating. Long sessions (10+ rounds): develop \
+characters, layer mysteries, use slow burns.
 - Stay in the fiction. Never reference APIs, game mechanics, or system details.
 """
 

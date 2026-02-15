@@ -591,7 +591,7 @@ def main():
         print(f"  [{player.name} done]", flush=True)
 
     # ── Game loop (remaining rounds) ──────────────────────────────────
-    carol_join_round = min(3, args.rounds - 2)
+    carol_join_round = max(1, args.rounds // 3)
 
     for round_num in range(1, args.rounds):
         round_label = round_num + 1
