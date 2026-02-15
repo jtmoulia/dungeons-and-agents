@@ -196,6 +196,9 @@ for minor scares, 2+ for major horrors. Use this frequently — stress drives th
 - **panic_check**: When stress is high and something terrifying happens.
 - **start_combat / combat_action / end_combat**: For structured combat encounters.
 - **set_scene**: Update the scene description when the location changes.
+- **configure_rules**: Tune difficulty at any time. Adjust damage_multiplier, \
+stress_per_failed_check, difficulty_modifier, max_wounds, etc. Consider calling \
+this early to set the tone — high lethality, high stress, forgiving, etc.
 
 ### IMPORTANT
 - You should call 1-3 tools PER ROUND on average. If you go a round without \
@@ -226,8 +229,23 @@ You are **{character_name}** in a sci-fi horror RPG.
 - Stay in character as {character_name}. First person.
 - Talk like a real person under stress — fragments, interruptions, cursing.
 - Have opinions. Disagree with people. Make snap decisions.
+
+## Roleplay Rules
+
+- **Declare intent, not outcomes.** Say "I try to pry the panel open" — NOT "I \
+pry the panel open and find a circuit board." The DM resolves what happens.
+- **Don't control other characters.** Never narrate what other PCs or NPCs do, \
+say, or feel. React to them, don't puppeteer them.
+- **Leave space.** Keep responses to 1-4 sentences. Don't write paragraphs — \
+leave room for others to act and the DM to narrate.
+- **React to what just happened.** Don't skip ahead or introduce new plot elements.
+
+## Formatting
+
+- **Bold dialogue** so it stands out: **"Like this."**
+- Write actions in plain text: I check the console readout.
 - Write ONLY your character's speech and actions. Do not include metadata, \
-labels like [ACTION], agent names, or formatting prefixes. Just write in character.
+labels like [ACTION], agent names, or formatting prefixes.
 """
 
 
@@ -398,10 +416,11 @@ def main():
     def _player_choose_identity(
         agent: dict, char_class: CharacterClass, sheet: str | None,
         taken_names: set[str],
-    ) -> tuple[str, str]:
-        """Have the player agent choose their own name and identity.
+    ) -> tuple[str, str, str]:
+        """Have the player agent choose their own name, emoji, and identity.
 
-        Returns (character_name, identity_text).
+        Returns (display_name, identity_text, emoji).
+        The display_name is formatted as "{emoji} {surname}".
         """
         stats_info = f"\n\nYour character sheet:\n{sheet}" if sheet else ""
         taken_note = ""
@@ -415,10 +434,12 @@ def main():
                 f"Your class is: {char_class.value}.\n"
                 f"{stats_info}{taken_note}\n\n"
                 f"Choose a single surname for your character (like Reyes, Okafor, "
-                f"Tran — no first names). Then define your role on the ship, "
-                f"personality (1-2 sentences), and speech style (one sentence).\n\n"
+                f"Tran — no first names). Pick a single emoji that represents your "
+                f"character (e.g. 🔧 for a mechanic, 🔬 for a scientist, 🤖 for an "
+                f"android). Then define your role on the ship, personality (1-2 "
+                f"sentences), and speech style (one sentence).\n\n"
                 f"Respond with ONLY a JSON object:\n"
-                '{{"name": "Surname", "role": "one-line role", '
+                '{{"name": "Surname", "emoji": "🔧", "role": "one-line role", '
                 '"personality": "1-2 sentences", "speech_style": "one sentence"}}'
             )}],
         )
@@ -427,37 +448,41 @@ def main():
             if raw.startswith("```"):
                 raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
             data = json.loads(raw)
-            name = data["name"]
+            surname = data["name"]
+            emoji = data.get("emoji", "👤")
             # Ensure uniqueness
-            if name.lower() in {n.lower() for n in taken_names}:
-                name = f"{name}-{random.randint(10, 99)}"
+            if surname.lower() in {n.lower() for n in taken_names}:
+                surname = f"{surname}-{random.randint(10, 99)}"
+            display_name = f"{emoji} {surname}"
             identity = (
                 f"**Role**: {data['role']}\n\n"
                 f"**Personality**: {data['personality']}\n\n"
                 f"**Speech style**: {data['speech_style']}"
             )
-            return name, identity
+            return display_name, identity, emoji
         except (json.JSONDecodeError, KeyError, IndexError):
-            name = f"Crew-{random.randint(100, 999)}"
+            emoji = "👤"
+            surname = f"Crew-{random.randint(100, 999)}"
+            display_name = f"{emoji} {surname}"
             identity = f"A {char_class.value} aboard {ship_name}. Tough and resourceful."
-            return name, identity
+            return display_name, identity, emoji
 
     # ── Players choose characters and join ─────────────────────────────
     print("\n=== Players choosing characters ===")
     used_names: set[str] = set()
 
     # Player 1 chooses
-    p1_name, p1_identity = _player_choose_identity(p1_agent, player_classes[0], None, used_names)
+    p1_name, p1_identity, p1_emoji = _player_choose_identity(p1_agent, player_classes[0], None, used_names)
     used_names.add(p1_name)
     print(f"  Player 1 chose: {p1_name} ({player_classes[0].value})")
 
     # Player 2 chooses
-    p2_name, p2_identity = _player_choose_identity(p2_agent, player_classes[1], None, used_names)
+    p2_name, p2_identity, p2_emoji = _player_choose_identity(p2_agent, player_classes[1], None, used_names)
     used_names.add(p2_name)
     print(f"  Player 2 chose: {p2_name} ({player_classes[1].value})")
 
     # Player 3 chooses (joins later)
-    p3_name, p3_identity = _player_choose_identity(p3_agent, player_classes[2], None, used_names)
+    p3_name, p3_identity, p3_emoji = _player_choose_identity(p3_agent, player_classes[2], None, used_names)
     used_names.add(p3_name)
     print(f"  Player 3 chose: {p3_name} ({player_classes[2].value}) — joins mid-session")
 
@@ -471,10 +496,10 @@ def main():
     # Regenerate identities with actual stats now that engine characters exist
     p1_sheet = _format_character_sheet(p1_name)
     if p1_sheet:
-        _, p1_identity = _player_choose_identity(p1_agent, player_classes[0], p1_sheet, used_names)
+        _, p1_identity, _ = _player_choose_identity(p1_agent, player_classes[0], p1_sheet, used_names)
     p2_sheet = _format_character_sheet(p2_name)
     if p2_sheet:
-        _, p2_identity = _player_choose_identity(p2_agent, player_classes[1], p2_sheet, used_names)
+        _, p2_identity, _ = _player_choose_identity(p2_agent, player_classes[1], p2_sheet, used_names)
 
     # Format all character sheets for the DM briefing
     all_sheets: dict[str, str] = {}
@@ -623,7 +648,7 @@ def main():
             # Regenerate identity with actual stats
             p3_sheet = _format_character_sheet(p3_name)
             if p3_sheet:
-                _, p3_identity = _player_choose_identity(p3_agent, player_classes[2], p3_sheet, used_names)
+                _, p3_identity, _ = _player_choose_identity(p3_agent, player_classes[2], p3_sheet, used_names)
 
             player3 = AIPlayer(
                 name=p3_name,

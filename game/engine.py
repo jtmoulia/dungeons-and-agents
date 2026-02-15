@@ -12,6 +12,7 @@ from game.models import (
     CharacterClass,
     CombatState,
     Controller,
+    GameRules,
     GameState,
     LogEntry,
 )
@@ -86,14 +87,28 @@ class GameEngine:
 
     # --- Game management ---
 
-    def init_game(self, name: str = "Untitled Game") -> GameState:
-        state = GameState(name=name)
+    def init_game(
+        self, name: str = "Untitled Game", rules: GameRules | None = None,
+    ) -> GameState:
+        state = GameState(name=name, rules=rules or GameRules())
         self._log(state, f"Game '{name}' initialized.", "system")
         self._save(state)
         return state
 
     def get_state(self) -> GameState:
         return self._load()
+
+    def update_rules(self, **kwargs) -> GameRules:
+        """Update game rules with the given keyword arguments."""
+        state = self._load()
+        for key, value in kwargs.items():
+            if hasattr(state.rules, key):
+                setattr(state.rules, key, value)
+            else:
+                raise EngineError(f"Unknown rule: '{key}'")
+        self._log(state, f"Game rules updated: {kwargs}", "system")
+        self._save(state)
+        return state.rules
 
     # --- Character management ---
 
@@ -119,14 +134,20 @@ class GameEngine:
 
         from game.models import Saves, Stats
 
+        rules = state.rules
+        base_hp = CLASS_HP[char_class]
+        scaled_hp = max(1, int(base_hp * rules.hp_multiplier))
+
         char = Character(
             name=name,
             char_class=char_class,
             controller=controller,
             stats=Stats(**stats_dict),
             saves=CLASS_SAVES[char_class].model_copy(),
-            hp=CLASS_HP[char_class],
-            max_hp=CLASS_HP[char_class],
+            hp=scaled_hp,
+            max_hp=scaled_hp,
+            max_wounds=rules.max_wounds,
+            stress=rules.base_stress,
             skills=dict(CLASS_STARTING_SKILLS[char_class]),
         )
         state.characters[name] = char
@@ -168,9 +189,10 @@ class GameEngine:
                 "combat, sanity, fear, body."
             )
 
-        modifier = 0
+        rules = state.rules
+        modifier = -rules.difficulty_modifier  # positive difficulty = harder
         if skill and skill in char.skills:
-            modifier = SKILL_TIER_BONUS[char.skills[skill]]
+            modifier += SKILL_TIER_BONUS[char.skills[skill]] + rules.skill_bonus_modifier
 
         result = stat_check(
             target, modifier, advantage=advantage, disadvantage=disadvantage
@@ -191,9 +213,9 @@ class GameEngine:
         )
 
         # Failed check adds stress
-        if not result.succeeded:
-            char.stress += 1
-            self._log(state, f"{name} gains 1 stress (now {char.stress}).")
+        if not result.succeeded and rules.stress_per_failed_check > 0:
+            char.stress += rules.stress_per_failed_check
+            self._log(state, f"{name} gains {rules.stress_per_failed_check} stress (now {char.stress}).")
 
         self._save(state)
         return result
@@ -206,21 +228,24 @@ class GameEngine:
         if not char:
             raise EngineError(f"Character '{name}' not found.")
 
-        result = {"raw_damage": amount, "absorbed": 0, "damage_taken": 0, "wound": False, "dead": False}
+        rules = state.rules
+        amount = max(1, int(amount * rules.damage_multiplier))
+        result = {"character": name, "raw_damage": amount, "absorbed": 0, "damage_taken": 0, "wound": False, "dead": False}
 
-        # Armor absorbs damage
-        if char.armor.ap > 0:
-            if amount < char.armor.ap:
+        # Armor absorbs damage (scaled by armor_multiplier)
+        effective_ap = max(0, int(char.armor.ap * rules.armor_multiplier))
+        if effective_ap > 0:
+            if amount < effective_ap:
                 result["absorbed"] = amount
                 self._log(state, f"{name}'s {char.armor.name} absorbs {amount} damage.")
                 self._save(state)
                 return result
             else:
-                result["absorbed"] = char.armor.ap
-                amount -= char.armor.ap
+                result["absorbed"] = effective_ap
+                amount -= effective_ap
                 self._log(
                     state,
-                    f"{name}'s {char.armor.name} (AP {char.armor.ap}) destroyed! "
+                    f"{name}'s {char.armor.name} (AP {effective_ap}) destroyed! "
                     f"{amount} damage gets through.",
                 )
                 char.armor.ap = 0
@@ -286,8 +311,10 @@ class GameEngine:
         if not char:
             raise EngineError(f"Character '{name}' not found.")
 
+        rules = state.rules
         roll = roll_d20()
-        panicked = roll <= char.stress
+        effective_stress = char.stress + rules.panic_threshold_modifier
+        panicked = roll <= effective_stress
         result = {"roll": roll, "stress": char.stress, "panicked": panicked, "effect": None}
 
         if panicked:

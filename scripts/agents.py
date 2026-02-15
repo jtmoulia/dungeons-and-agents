@@ -149,6 +149,43 @@ ENGINE_TOOL_DEFINITIONS = [
             "required": ["description"],
         },
     },
+    {
+        "name": "configure_rules",
+        "description": (
+            "Adjust game rules to tune difficulty. Call at the start of the game or "
+            "mid-session to change the feel. All values are optional — only include "
+            "what you want to change."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "difficulty_modifier": {
+                    "type": "integer",
+                    "description": "Global check difficulty: positive = harder, negative = easier. Range: -20 to +20.",
+                },
+                "stress_per_failed_check": {
+                    "type": "integer",
+                    "description": "Stress gained per failed check (default: 1). Set to 2 for high-tension scenarios.",
+                },
+                "panic_threshold_modifier": {
+                    "type": "integer",
+                    "description": "Added to stress when comparing panic rolls. Positive = easier to panic.",
+                },
+                "damage_multiplier": {
+                    "type": "number",
+                    "description": "Multiply all incoming damage. 0.5 = half damage, 2.0 = double.",
+                },
+                "hp_multiplier": {
+                    "type": "number",
+                    "description": "Multiply base HP for new characters. Only affects characters created after change.",
+                },
+                "max_wounds": {
+                    "type": "integer",
+                    "description": "Wounds before death (default: 2). Set to 1 for lethal games, 3 for forgiving.",
+                },
+            },
+        },
+    },
 ]
 
 
@@ -487,6 +524,9 @@ class EngineAIDM(AIDM):
             elif name == "set_scene":
                 self.engine.set_scene(params["description"])
                 return {"scene": params["description"]}
+            elif name == "configure_rules":
+                rules = self.engine.update_rules(**params)
+                return {"rules": rules.model_dump()}
             else:
                 return {"error": f"Unknown tool: {name}"}
         except Exception as e:
@@ -496,6 +536,20 @@ class EngineAIDM(AIDM):
         """Concise summary of engine state for the LLM context."""
         state = self.engine.get_state()
         lines = ["## Current Engine State\n"]
+
+        # Show non-default rules
+        rules = state.rules
+        rule_parts = []
+        if rules.difficulty_modifier != 0:
+            rule_parts.append(f"Difficulty: {rules.difficulty_modifier:+d}")
+        if rules.damage_multiplier != 1.0:
+            rule_parts.append(f"Damage: x{rules.damage_multiplier}")
+        if rules.stress_per_failed_check != 1:
+            rule_parts.append(f"Stress/fail: {rules.stress_per_failed_check}")
+        if rules.max_wounds != 2:
+            rule_parts.append(f"Max wounds: {rules.max_wounds}")
+        if rule_parts:
+            lines.append(f"**Rules:** {' | '.join(rule_parts)}\n")
 
         if state.scene:
             lines.append(f"**Scene:** {state.scene}\n")
@@ -584,6 +638,15 @@ class EngineAIDM(AIDM):
             return "⚔️ Combat ended."
         elif tool_name == "set_scene":
             return f"📍 Scene: {tool_result.get('scene', '?')}"
+        elif tool_name == "configure_rules":
+            rules = tool_result.get("rules", {})
+            changes = [f"{k}={v}" for k, v in rules.items()
+                       if v != {"difficulty_modifier": 0, "stress_per_failed_check": 1,
+                                "panic_threshold_modifier": 0, "base_stress": 2,
+                                "max_wounds": 2, "hp_multiplier": 1.0,
+                                "damage_multiplier": 1.0, "armor_multiplier": 1.0,
+                                "skill_bonus_modifier": 0}.get(k, v)]
+            return f"⚙️ Rules updated: {', '.join(changes) if changes else 'reset to defaults'}"
         else:
             return f"[{tool_name}] {json.dumps(tool_result)}"
 

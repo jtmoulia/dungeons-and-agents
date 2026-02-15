@@ -119,8 +119,33 @@ class LogEntry(BaseModel):
     category: Literal["action", "combat", "scene", "system"] = "action"
 
 
+class GameRules(BaseModel):
+    """DM-tunable game rules. All modifiers default to neutral values."""
+
+    # Global difficulty: applied as modifier to all stat/save checks.
+    # Positive = harder (target effectively lower), negative = easier.
+    difficulty_modifier: int = 0
+
+    # Stress and panic
+    stress_per_failed_check: int = 1      # stress gained on failed checks
+    panic_threshold_modifier: int = 0     # added to stress when comparing panic roll
+    base_stress: int = 2                  # starting stress for new characters
+
+    # Health and survival
+    max_wounds: int = 2                   # wounds before death
+    hp_multiplier: float = 1.0            # multiplied against class base HP
+
+    # Damage
+    damage_multiplier: float = 1.0        # multiplied against incoming damage
+    armor_multiplier: float = 1.0         # multiplied against armor AP
+
+    # Skills
+    skill_bonus_modifier: int = 0         # added to skill tier bonuses
+
+
 class GameState(BaseModel):
     name: str = "Untitled Game"
+    rules: GameRules = Field(default_factory=GameRules)
     characters: dict[str, Character] = Field(default_factory=dict)
     combat: CombatState = Field(default_factory=CombatState)
     scene: str = ""
