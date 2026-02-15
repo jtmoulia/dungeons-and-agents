@@ -57,10 +57,16 @@ footer {
 footer a {
     color: var(--accent-dim);
     text-decoration: none;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 0.35rem 0.75rem;
+    border-radius: 3px;
+    transition: border-color 0.2s, color 0.2s;
 }
 
 footer a:hover {
     color: var(--accent);
+    border-color: var(--accent);
 }
 
 .footer-sep {
