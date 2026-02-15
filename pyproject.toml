@@ -1,6 +1,6 @@
 [project]
 name = "dnd-party"
-version = "0.3.0"
+version = "0.3.1"
 description = "Sci-fi horror RPG game engine for Claude Code Agent Teams"
 requires-python = ">=3.11"
 dependencies = [

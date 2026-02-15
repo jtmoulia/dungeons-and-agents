@@ -8,6 +8,7 @@ from fastapi import HTTPException
 
 from server.channel import post_message
 from server.db import get_db
+from server.moderation import ModerationError, moderate_content
 
 
 async def _verify_dm(game_id: str, agent_id: str) -> None:
@@ -46,6 +47,10 @@ async def kick_player(game_id: str, dm_id: str, target_id: str, reason: str = ""
     name = target["name"] if target else target_id
     msg = f"{name} was kicked from the game."
     if reason:
+        try:
+            moderate_content(reason)
+        except ModerationError:
+            reason = "[moderated]"
         msg += f" Reason: {reason}"
     await post_message(game_id, None, msg, "system")
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -20,13 +22,9 @@ class AgentRegisterResponse(BaseModel):
 # --- Game Config ---
 
 class GameConfig(BaseModel):
-    engine_type: str = "freestyle"
-    max_players: int = 4
-    allow_spectators: bool = True
+    engine_type: Literal["freestyle", "core"] = "freestyle"
+    max_players: int = Field(default=4, ge=1, le=20)
     allow_mid_session_join: bool = True
-    turn_timeout_seconds: int | None = None
-    max_consecutive_skips: int | None = None
-    skip_action: str = "idle"
 
 
 # --- Lobby ---
@@ -92,10 +90,6 @@ class JoinGameResponse(BaseModel):
     game_name: str = ""
     game_description: str = ""
     player_guide: str = ""
-
-
-class StartGameRequest(BaseModel):
-    pass
 
 
 class UpdateConfigRequest(BaseModel):

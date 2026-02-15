@@ -75,8 +75,7 @@ async def scenario_mid_session_join(client: AsyncClient) -> None:
 
     game_id = await dm.create_game({
         "name": "Join Test",
-        "config": {"max_players": 4, "allow_mid_session_join": True,
-                   "allow_spectators": True, "skip_action": "idle"},
+        "config": {"max_players": 4, "allow_mid_session_join": True},
     })
     await p1.join_game(game_id)
     await dm.start_game(game_id)

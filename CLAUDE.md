@@ -12,9 +12,8 @@ message-based API.
 
 ```
 game/           Core RPG engine (CLI, dice, combat, characters, campaigns)
-server/         FastAPI play-by-post service (routes, DB, auth, engine plugins)
-server/engine/  Pluggable game engine system (freestyle, core)
-server/routes/  API route modules (lobby, games, messages, engine, admin)
+server/         FastAPI play-by-post service (routes, DB, auth)
+server/routes/  API route modules (lobby, games, messages, admin)
 web/            Browser-based spectator UI (static HTML/JS)
 tests/          pytest test suite (unit + integration)
 tests/harness/  Scripted scenario test harness for multi-agent playthroughs
@@ -47,10 +46,6 @@ uv run pytest tests/test_lobby.py -v
   connection and schema).
 - **Pydantic models** define all API request/response shapes (`server/models.py`)
   and game data (`game/models.py`).
-- **Engine plugin system**: `server/engine/base.py` defines the abstract
-  `GameEnginePlugin` interface. Concrete plugins (`FreestylePlugin`,
-  `CoreEnginePlugin`) implement it. The engine type is chosen per-game at
-  creation time.
 - **Auth via API keys and session tokens**: agents register to get an API key,
   then receive session tokens when creating or joining games.
 - **FastAPI lifespan** handles DB init/teardown (`server/app.py`).
@@ -59,8 +54,8 @@ uv run pytest tests/test_lobby.py -v
 
 ## Testing
 
-The project has 180+ tests covering the game engine, server routes, engine
-plugins, and the test harness.
+The project has 180+ tests covering the game engine, server routes, and the
+test harness.
 
 ```bash
 # Verify nothing is broken
@@ -80,7 +75,6 @@ Test fixtures live in `tests/conftest.py` and provide an async HTTP client
 
 - All new **server** code (routes, middleware, DB logic) goes in `server/`.
 - All **game engine** logic (dice, combat, characters, campaigns) stays in `game/`.
-- New engine plugins go in `server/engine/` and must implement `GameEnginePlugin`.
 - API route modules go in `server/routes/` and are registered in `server/app.py`.
 - Pydantic models for the API live in `server/models.py`; game data models
   live in `game/models.py`.
@@ -120,7 +114,6 @@ API key requires re-registering.
 | `/agents`    | `server/routes/lobby.py` | Agent registration, lobby listing|
 | `/games`     | `server/routes/games.py` | Create, join, start, configure   |
 | `/messages`  | `server/routes/messages.py` | Post and retrieve game messages |
-| `/engine`    | `server/routes/engine.py`| Submit engine actions, get state |
 | `/admin`     | `server/routes/admin.py` | Kick, mute, invite players       |
 
 ### Key Endpoints
@@ -143,20 +136,14 @@ API key requires re-registering.
 - `POST .../mute` / `POST .../unmute` — Toggle player muting.
 - `POST .../invite` — Invite specific agent.
 
-## Engine Plugins
+## Engine Types
 
-Two engines available, chosen per-game at creation via `engine_type`:
+Two `engine_type` values are supported (set in `GameConfig` at game creation):
 
-- **`freestyle`** (`server/engine/freestyle.py`, `FreestylePlugin`) — No rules.
-  DM resolves everything through narration. `process_action()` always returns
-  success with a "DM resolves" message.
-- **`core`** (`server/engine/core.py`, `CoreEnginePlugin`) — Wraps `game/`
-  engine. Mothership-inspired d100 roll-under mechanics. Supports stat checks
-  (combat, intellect, strength, speed + skills), attacks, damage, healing,
-  panic/stress. Characters created with class (marine, scientist, teamster,
-  android).
-
-Engine state is persisted in the `engine_state` JSON column of the games table.
+- **`freestyle`** — No rules. DM resolves everything through narration.
+- **`core`** — Mothership-inspired d100 roll-under mechanics via the `game/`
+  engine. Supports stat checks, attacks, damage, healing, stress/panic.
+  Characters created with class (marine, scientist, teamster, android).
 
 ## Game Engine CLI
 

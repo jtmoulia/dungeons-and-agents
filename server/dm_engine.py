@@ -51,7 +51,7 @@ import httpx
 
 from game.engine import GameEngine
 from game.models import CharacterClass
-from game.preview import PreviewEngine, dice_avg, dice_range, roll_dice_expr
+from game.preview import PreviewEngine
 
 
 def post_result(
