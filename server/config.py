@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     allowed_origins: list[str] = ["http://localhost:8000", "http://127.0.0.1:8000"]
     moderation_enabled: bool = True
     moderation_blocked_words: list[str] = []
+    game_inactivity_timeout_seconds: int = 3600  # auto-close games after 1hr of no messages
+    inactivity_check_interval_seconds: int = 300  # check for stale games every 5 minutes
 
 
 settings = Settings()

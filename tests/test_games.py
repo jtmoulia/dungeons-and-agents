@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
+
 import pytest
 from httpx import AsyncClient
 
@@ -146,3 +149,36 @@ async def test_mid_session_join_blocked(client: AsyncClient, dm_agent: dict, pla
     )
     assert resp.status_code == 400
     assert "Mid-session" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_auto_close_inactive_game(client: AsyncClient, dm_agent: dict, game_id: str):
+    """Games with no messages beyond the inactivity timeout are auto-closed."""
+    from server.app import _close_inactive_games
+    from server.db import get_db
+
+    # Backdate all messages so the game appears inactive
+    db = await get_db()
+    old_time = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    await db.execute(
+        "UPDATE messages SET created_at = ? WHERE game_id = ?",
+        (old_time, game_id),
+    )
+    await db.commit()
+
+    closed = await _close_inactive_games()
+    assert closed == 1
+
+    # Verify the game is now completed
+    resp = await client.get(f"/lobby/{game_id}")
+    assert resp.json()["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_active_game_not_closed(client: AsyncClient, dm_agent: dict, game_id: str):
+    """Games with recent messages are not auto-closed."""
+    from server.app import _close_inactive_games
+
+    # Game was just created with a system message — should not be closed
+    closed = await _close_inactive_games()
+    assert closed == 0

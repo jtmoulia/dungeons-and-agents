@@ -31,6 +31,9 @@ async def test_kick_player(client: AsyncClient, dm_agent: dict, player_agent: di
 async def test_mute_unmute_player(client: AsyncClient, dm_agent: dict, player_agent: dict, game_id: str):
     join_resp = await client.post(f"/games/{game_id}/join", json={}, headers=auth_header(player_agent))
     player_token = join_resp.json()["session_token"]
+    # Start game so action messages are allowed
+    dm_token = await get_session_token(game_id, dm_agent["id"])
+    await client.post(f"/games/{game_id}/start", headers=auth_header(dm_agent, dm_token))
 
     # Mute
     resp = await client.post(

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -14,11 +16,87 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from server.channel import post_message
 from server.config import settings
 from server.db import close_db, get_db, init_db
 from server.moderation import configure_moderation
 
 logger = logging.getLogger(__name__)
+
+
+async def _close_inactive_games() -> int:
+    """Close games with no messages for longer than the inactivity timeout.
+
+    Returns the number of games closed.
+    """
+    timeout = settings.game_inactivity_timeout_seconds
+    if timeout <= 0:
+        return 0
+
+    db = await get_db()
+    now = datetime.now(timezone.utc)
+
+    # Find active games (open or in_progress)
+    cursor = await db.execute(
+        "SELECT id, name FROM games WHERE status IN ('open', 'in_progress')"
+    )
+    active_games = await cursor.fetchall()
+
+    closed = 0
+    for game in active_games:
+        game_id = game["id"]
+        # Get the most recent message timestamp
+        cursor = await db.execute(
+            "SELECT created_at FROM messages WHERE game_id = ? ORDER BY created_at DESC LIMIT 1",
+            (game_id,),
+        )
+        last_msg = await cursor.fetchone()
+
+        if last_msg:
+            last_time = datetime.fromisoformat(last_msg["created_at"])
+            elapsed = (now - last_time).total_seconds()
+        else:
+            # No messages at all — check game created_at
+            cursor = await db.execute(
+                "SELECT created_at FROM games WHERE id = ?", (game_id,),
+            )
+            game_row = await cursor.fetchone()
+            last_time = datetime.fromisoformat(game_row["created_at"])
+            elapsed = (now - last_time).total_seconds()
+
+        if elapsed >= timeout:
+            completed_at = now.isoformat()
+            await db.execute(
+                "UPDATE games SET status = 'completed', completed_at = ? WHERE id = ?",
+                (completed_at, game_id),
+            )
+            await post_message(
+                game_id, None,
+                f"Game closed due to inactivity ({timeout // 60} minutes with no messages).",
+                "system",
+            )
+            closed += 1
+            logger.info(
+                "Auto-closed game %s (%s) after %d seconds of inactivity",
+                game_id, game["name"], int(elapsed),
+            )
+
+    if closed:
+        await db.commit()
+    return closed
+
+
+async def _inactivity_checker() -> None:
+    """Background task that periodically checks for and closes inactive games."""
+    interval = settings.inactivity_check_interval_seconds
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            closed = await _close_inactive_games()
+            if closed:
+                logger.info("Inactivity check: closed %d game(s)", closed)
+        except Exception:
+            logger.exception("Error in inactivity checker")
 
 
 @asynccontextmanager
@@ -34,8 +112,11 @@ async def lifespan(app: FastAPI):
             "Content moderation is enabled but no blocked words are configured. "
             "Set moderation_blocked_words in config for content filtering."
         )
-    logger.info("Server ready")
+    # Start background inactivity checker
+    checker_task = asyncio.create_task(_inactivity_checker())
+    logger.info("Server ready (inactivity timeout: %ds)", settings.game_inactivity_timeout_seconds)
     yield
+    checker_task.cancel()
     logger.info("Shutting down server")
     await close_db()
     logger.info("Server stopped")
@@ -44,7 +125,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Dungeons and Agents",
     description="Play-by-post RPG service for AI agents and humans",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -101,7 +182,7 @@ app.include_router(games_router, tags=["games"])
 app.include_router(messages_router, tags=["messages"])
 app.include_router(admin_router, tags=["admin"])
 
-from server.guides import DM_GUIDE, DM_INSTRUCTIONS, PLAYER_GUIDE, PLAYER_INSTRUCTIONS
+from server.guides import DM_GUIDE, DM_INSTRUCTIONS, PLAYER_GUIDE, PLAYER_INSTRUCTIONS  # noqa: E402
 
 
 @app.get("/", include_in_schema=False)
