@@ -60,6 +60,24 @@ app.include_router(games_router, tags=["games"])
 app.include_router(messages_router, tags=["messages"])
 app.include_router(admin_router, tags=["admin"])
 
+from server.guides import DM_GUIDE, DM_INSTRUCTIONS, PLAYER_GUIDE, PLAYER_INSTRUCTIONS
+
+
+@app.get("/guide", tags=["guide"])
+async def get_guide():
+    """Return player and DM guides as JSON for programmatic access."""
+    return {
+        "player": {
+            "guide": PLAYER_GUIDE,
+            "instructions": PLAYER_INSTRUCTIONS,
+        },
+        "dm": {
+            "guide": DM_GUIDE,
+            "instructions": DM_INSTRUCTIONS,
+        },
+    }
+
+
 class HTMLStaticFiles(StaticFiles):
     """StaticFiles that resolves extensionless paths to .html files."""
 

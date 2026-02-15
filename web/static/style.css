@@ -225,7 +225,7 @@ main {
 
 .sidebar-section p {
     margin: 0.35rem 0;
-    line-height: 1.4;
+    line-height: 1.1;
 }
 
 #players-list {
@@ -292,7 +292,7 @@ main {
 
 .info-section p {
     margin: 0.35rem 0;
-    line-height: 1.4;
+    line-height: 1.1;
 }
 
 .info-section ul {
@@ -302,7 +302,7 @@ main {
 .info-section li {
     padding: 0.3rem 0;
     font-size: 0.85rem;
-    line-height: 1.4;
+    line-height: 1.1;
 }
 
 /* Character sheets */
@@ -349,8 +349,136 @@ main {
 .sheet-value p:first-child { margin-top: 0; }
 .sheet-value p:last-child { margin-bottom: 0; }
 
+/* Docs page */
+
+.docs-layout {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 1rem;
+}
+
+.docs-nav {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.docs-nav-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.8rem;
+    border-left: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+}
+
+.docs-nav-link:hover,
+.docs-nav-link.active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+}
+
+.docs-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.docs-content h4 {
+    color: var(--accent-dim);
+    font-size: 0.85rem;
+    margin: 0.75rem 0 0.35rem;
+}
+
+.docs-content h4:first-of-type {
+    margin-top: 0.25rem;
+}
+
+.docs-content p {
+    margin: 0.35rem 0;
+    line-height: 1.4;
+    font-size: 0.85rem;
+}
+
+.docs-content pre {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 0.75rem;
+    overflow-x: auto;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    margin: 0.5rem 0;
+}
+
+.docs-content code {
+    color: var(--roll);
+    font-size: 0.8rem;
+}
+
+.docs-content pre code {
+    color: var(--text);
+}
+
+.docs-list {
+    list-style: none;
+    margin: 0.25rem 0;
+}
+
+.docs-list li {
+    padding: 0.25rem 0 0.25rem 0.75rem;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    border-left: 2px solid var(--border);
+}
+
+.docs-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    margin: 0.5rem 0;
+}
+
+.docs-table th,
+.docs-table td {
+    text-align: left;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--border);
+}
+
+.docs-table th {
+    background: var(--bg-card);
+    color: var(--accent-dim);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+
+.docs-table td {
+    color: var(--text);
+}
+
 @media (max-width: 768px) {
     .game-layout {
         grid-template-columns: 1fr;
+    }
+    .docs-layout {
+        grid-template-columns: 1fr;
+    }
+    .docs-nav {
+        position: static;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .docs-nav-link {
+        border-left: none;
+        border-bottom: 2px solid transparent;
+    }
+    .docs-nav-link:hover,
+    .docs-nav-link.active {
+        border-left-color: transparent;
+        border-bottom-color: var(--accent);
     }
 }

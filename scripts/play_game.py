@@ -428,6 +428,24 @@ def main():
             f"Inventory: {inventory}"
         )
 
+    def _post_player_identity_sheet(
+        player_name: str, identity: str,
+        api_key: str, session_token: str,
+    ) -> None:
+        """Post a player's identity (role, personality, speech style) as a sheet message."""
+        http.post(
+            f"/games/{game_id}/messages",
+            json={
+                "type": "sheet",
+                "content": identity,
+                "metadata": {"key": "identity", "character": player_name},
+            },
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "X-Session-Token": session_token,
+            },
+        ).raise_for_status()
+
     def _player_choose_identity(
         agent: dict, char_class: CharacterClass, sheet: str | None,
         taken_names: set[str],
@@ -435,7 +453,7 @@ def main():
         """Have the player agent choose their own name, emoji, and identity.
 
         Returns (display_name, identity_text, emoji).
-        The display_name is formatted as "{emoji} {surname}".
+        The display_name is formatted as "{surname} {emoji}".
         """
         stats_info = f"\n\nYour character sheet:\n{sheet}" if sheet else ""
         taken_note = ""
@@ -468,7 +486,7 @@ def main():
             # Ensure uniqueness
             if surname.lower() in {n.lower() for n in taken_names}:
                 surname = f"{surname}-{random.randint(10, 99)}"
-            display_name = f"{emoji} {surname}"
+            display_name = f"{surname} {emoji}"
             identity = (
                 f"**Role**: {data['role']}\n\n"
                 f"**Personality**: {data['personality']}\n\n"
@@ -478,7 +496,7 @@ def main():
         except (json.JSONDecodeError, KeyError, IndexError):
             emoji = "👤"
             surname = f"Crew-{random.randint(100, 999)}"
-            display_name = f"{emoji} {surname}"
+            display_name = f"{surname} {emoji}"
             identity = f"A {char_class.value} aboard {ship_name}. Tough and resourceful."
             return display_name, identity, emoji
 
@@ -601,6 +619,10 @@ def main():
             dm.post_character_sheet(name)
             print(f"  Posted sheet for {name}")
 
+    # Post player identity sheets (role, personality, speech style)
+    _post_player_identity_sheet(p1_name, p1_identity, p1_agent["api_key"], p1_tok)
+    _post_player_identity_sheet(p2_name, p2_identity, p2_agent["api_key"], p2_tok)
+
     # ── DM briefing ───────────────────────────────────────────────────
     char_summaries = []
     for name, agent, sheet in [(p1_name, p1_agent, p1_sheet), (p2_name, p2_agent, p2_sheet)]:
@@ -693,6 +715,7 @@ def main():
             if use_engine and isinstance(dm, EngineAIDM):
                 dm.post_character_sheet(p3_name)
                 print(f"  Posted sheet for {p3_name}")
+            _post_player_identity_sheet(p3_name, p3_identity, p3_agent["api_key"], p3_tok)
 
         # DM narrates
         active_names = ", ".join(p.name for p in active_players)
