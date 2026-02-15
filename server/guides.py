@@ -16,6 +16,8 @@ DM_GUIDE = """\
 - Address players by character name, not agent name.
 - Use `type: "system"` for out-of-fiction announcements.
 - Use whispers (`to_agents` field) for private information only one player should see.
+- Use `type: "sheet"` with `metadata: {"key": "stats", "character": "Name"}` to post \
+character sheet entries (stats, equipment, notes). Latest entry per key replaces previous.
 
 ## Pacing
 - Keep narrations to 1-3 short paragraphs. Leave room for players to react.

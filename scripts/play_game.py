@@ -385,22 +385,28 @@ def main():
             f"Inventory: {inventory}"
         )
 
-    def _generate_character_identity(char_class: CharacterClass, sheet: str | None) -> tuple[str, str]:
-        """Use LLM to generate a character name and identity from class + stats.
+    def _player_choose_identity(
+        agent: dict, char_class: CharacterClass, sheet: str | None,
+        taken_names: set[str],
+    ) -> tuple[str, str]:
+        """Have the player agent choose their own name and identity.
 
         Returns (character_name, identity_text).
         """
         stats_info = f"\n\nYour character sheet:\n{sheet}" if sheet else ""
+        taken_note = ""
+        if taken_names:
+            taken_note = f"\n\nNames already taken (pick something different): {', '.join(taken_names)}"
         resp = llm.messages.create(
             model=MODEL,
             max_tokens=300,
             messages=[{"role": "user", "content": (
-                f"You're creating a character for a sci-fi horror RPG aboard {ship_name}. "
+                f"You're joining a sci-fi horror RPG aboard {ship_name}. "
                 f"Your class is: {char_class.value}.\n"
-                f"{stats_info}\n\n"
-                f"Generate a character with a single surname (like Reyes, Okafor, Tran — "
-                f"no first names), a one-line role on the ship, 1-2 sentences of "
-                f"personality, and a one-sentence speech style.\n\n"
+                f"{stats_info}{taken_note}\n\n"
+                f"Choose a single surname for your character (like Reyes, Okafor, "
+                f"Tran — no first names). Then define your role on the ship, "
+                f"personality (1-2 sentences), and speech style (one sentence).\n\n"
                 f"Respond with ONLY a JSON object:\n"
                 '{{"name": "Surname", "role": "one-line role", '
                 '"personality": "1-2 sentences", "speech_style": "one sentence"}}'
@@ -412,6 +418,9 @@ def main():
                 raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
             data = json.loads(raw)
             name = data["name"]
+            # Ensure uniqueness
+            if name.lower() in {n.lower() for n in taken_names}:
+                name = f"{name}-{random.randint(10, 99)}"
             identity = (
                 f"**Role**: {data['role']}\n\n"
                 f"**Personality**: {data['personality']}\n\n"
@@ -419,39 +428,28 @@ def main():
             )
             return name, identity
         except (json.JSONDecodeError, KeyError, IndexError):
-            # Fallback
             name = f"Crew-{random.randint(100, 999)}"
             identity = f"A {char_class.value} aboard {ship_name}. Tough and resourceful."
             return name, identity
 
-    # ── Generate characters and join ──────────────────────────────────
-    print("\n=== Generating characters ===")
+    # ── Players choose characters and join ─────────────────────────────
+    print("\n=== Players choosing characters ===")
     used_names: set[str] = set()
 
-    def _unique_identity(char_class: CharacterClass, sheet: str | None) -> tuple[str, str]:
-        """Generate a character identity, retrying if the name collides."""
-        name, identity = _generate_character_identity(char_class, sheet)
-        for _ in range(4):
-            if name.lower() not in used_names:
-                break
-            name, identity = _generate_character_identity(char_class, sheet)
-        else:
-            if name.lower() in used_names:
-                name = f"{name}-{random.randint(10, 99)}"
-        used_names.add(name.lower())
-        return name, identity
+    # Player 1 chooses
+    p1_name, p1_identity = _player_choose_identity(p1_agent, player_classes[0], None, used_names)
+    used_names.add(p1_name)
+    print(f"  Player 1 chose: {p1_name} ({player_classes[0].value})")
 
-    # Player 1
-    p1_name, p1_identity = _unique_identity(player_classes[0], None)
-    print(f"  Player 1: {p1_name} ({player_classes[0].value})")
+    # Player 2 chooses
+    p2_name, p2_identity = _player_choose_identity(p2_agent, player_classes[1], None, used_names)
+    used_names.add(p2_name)
+    print(f"  Player 2 chose: {p2_name} ({player_classes[1].value})")
 
-    # Player 2
-    p2_name, p2_identity = _unique_identity(player_classes[1], None)
-    print(f"  Player 2: {p2_name} ({player_classes[1].value})")
-
-    # Player 3 (generated now, joins later)
-    p3_name, p3_identity = _unique_identity(player_classes[2], None)
-    print(f"  Player 3: {p3_name} ({player_classes[2].value}) — joins mid-session")
+    # Player 3 chooses (joins later)
+    p3_name, p3_identity = _player_choose_identity(p3_agent, player_classes[2], None, used_names)
+    used_names.add(p3_name)
+    print(f"  Player 3 chose: {p3_name} ({player_classes[2].value}) — joins mid-session")
 
     # ── Players join ──────────────────────────────────────────────────
     print("\n=== Players joining ===")
@@ -463,10 +461,10 @@ def main():
     # Regenerate identities with actual stats now that engine characters exist
     p1_sheet = _format_character_sheet(p1_name)
     if p1_sheet:
-        _, p1_identity = _generate_character_identity(player_classes[0], p1_sheet)
+        _, p1_identity = _player_choose_identity(p1_agent, player_classes[0], p1_sheet, used_names)
     p2_sheet = _format_character_sheet(p2_name)
     if p2_sheet:
-        _, p2_identity = _generate_character_identity(player_classes[1], p2_sheet)
+        _, p2_identity = _player_choose_identity(p2_agent, player_classes[1], p2_sheet, used_names)
 
     # Format all character sheets for the DM briefing
     all_sheets: dict[str, str] = {}
@@ -608,7 +606,7 @@ def main():
             # Regenerate identity with actual stats
             p3_sheet = _format_character_sheet(p3_name)
             if p3_sheet:
-                _, p3_identity = _generate_character_identity(player_classes[2], p3_sheet)
+                _, p3_identity = _player_choose_identity(p3_agent, player_classes[2], p3_sheet, used_names)
 
             player3 = AIPlayer(
                 name=p3_name,

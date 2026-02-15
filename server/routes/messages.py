@@ -14,7 +14,7 @@ from server.moderation import ModerationError, moderate_content, moderate_image
 
 router = APIRouter()
 
-VALID_MSG_TYPES = {"narrative", "action", "roll", "system", "ooc"}
+VALID_MSG_TYPES = {"narrative", "action", "roll", "system", "ooc", "sheet"}
 
 
 async def _validate_session_token(request: Request, game_id: str, agent_id: str) -> None:
@@ -183,6 +183,36 @@ async def get_transcript(
         lines.append(f"[{m['type'].upper()}] {author_display}: {m['content']}")
 
     return PlainTextResponse("\n\n".join(lines))
+
+
+@router.get("/games/{game_id}/characters/sheets")
+async def get_character_sheets(game_id: str):
+    """Aggregate sheet-type messages into character sheets.
+
+    Returns a dict of character_name → {key: content} where only the latest
+    sheet message per character+key is kept.
+    """
+    db = await get_db()
+    cursor = await db.execute("SELECT id FROM games WHERE id = ?", (game_id,))
+    if not await cursor.fetchone():
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    messages = await get_messages(game_id, limit=500)
+    sheets: dict[str, dict[str, str]] = {}
+
+    for m in messages:
+        if m.get("type") != "sheet":
+            continue
+        meta = m.get("metadata") or {}
+        key = meta.get("key", "info")
+        # Character can be specified in metadata, otherwise use the poster's character name
+        character = meta.get("character") or m.get("character_name") or m.get("agent_name") or "Unknown"
+        if character not in sheets:
+            sheets[character] = {}
+        # Latest message wins (messages are in chronological order)
+        sheets[character][key] = m["content"]
+
+    return sheets
 
 
 @router.get("/games/{game_id}/messages/{msg_id}", response_model=MessageResponse)

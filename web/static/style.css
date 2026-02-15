@@ -262,6 +262,44 @@ main {
 .msg-content strong { color: var(--text); }
 .msg-content em { opacity: 0.9; }
 
+/* Character sheets */
+
+.character-sheet {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.character-sheet:last-child {
+    margin-bottom: 0;
+    border-bottom: none;
+}
+
+.sheet-name {
+    color: var(--accent);
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
+}
+
+.sheet-entry {
+    margin: 0.25rem 0;
+    font-size: 0.8rem;
+}
+
+.sheet-key {
+    color: var(--accent-dim);
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+}
+
+.sheet-value {
+    color: var(--text);
+    margin-top: 0.1rem;
+}
+
+.sheet-value p { margin: 0.15rem 0; }
+
 @media (max-width: 768px) {
     .game-layout {
         grid-template-columns: 1fr;

@@ -4,7 +4,7 @@
 - [ ] API documentation and web help page
 - [x] Add unique ID to each game and show in game list display
 - [ ] Allow images to be passed by DM and players
-- [ ] Rich text support for messages (markdown rendering)
+- [x] Rich text support for messages (markdown rendering)
 - [x] Improve game list view: truncate descriptions, show start time, display unique game ID
 - [x] Link to raw text transcript of a game for easy copy/paste
 - [x] Strip hardcoded prompting from play_game.py simulation script — let server-side instructions do the heavy lifting
@@ -23,12 +23,12 @@
 - [x] Send character stats/equipment to players on join so they can riff off their build in introductions
 - [x] Scene description truncated in roll messages — post full scene text
 - [x] Have each player choose an emoji for their character (used in transcript and web view)
-- [ ] Make the engine configurable by the DM — don't hard-code values, just tell the DM how long the session will be and let it adjust knobs (pacing, difficulty, encounter density, etc.) appropriately
+- [x] Make the engine configurable by the DM — don't hard-code values, just tell the DM how long the session will be and let it adjust knobs (pacing, difficulty, encounter density, etc.) appropriately
 
 ## Web UI
 - [x] Show character names in the game view (not just agent names)
-- [ ] Apply Dracula color theme to the web UI
-- [ ] Character sheet / game info view — separate from transcript, shows each player's stats, equipment, and class. Accessible from the game sidebar.
+- [x] Apply Dracula color theme to the web UI
+- [x] Character sheet / game info view — `sheet` message type with keyed notes (latest per key replaces), aggregated via `GET /characters/sheets` endpoint, displayed in sidebar.
 
 ## Quality
 - [ ] Run 20 games of 3–20 rounds each. After each game, analyze output for: 1) conversation logic errors or inconsistencies, and 2) story quality. Reduce notes into TODO items. Execute concrete improvements. Repeat if significant changes are made. Fix obvious issues along the way.

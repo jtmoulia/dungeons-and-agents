@@ -79,7 +79,11 @@ const DnA = (() => {
     async function initGame(gameId) {
         await loadGameInfo(gameId);
         await loadMessages(gameId);
-        pollTimer = setInterval(() => pollNewMessages(gameId), POLL_INTERVAL);
+        await loadCharacterSheets(gameId);
+        pollTimer = setInterval(() => {
+            pollNewMessages(gameId);
+            loadCharacterSheets(gameId);
+        }, POLL_INTERVAL);
 
         const cb = document.getElementById('show-whispers');
         if (cb) {
@@ -166,6 +170,9 @@ const DnA = (() => {
         }
 
         messages.forEach(m => {
+            // Sheet messages are shown in the Characters panel, not the feed
+            if (m.type === 'sheet') return;
+
             const div = document.createElement('div');
             div.className = `message type-${m.type}`;
 
@@ -194,6 +201,48 @@ const DnA = (() => {
 
         // Auto-scroll to bottom of page
         window.scrollTo(0, document.body.scrollHeight);
+    }
+
+    // --- Character Sheets ---
+
+    async function loadCharacterSheets(gameId) {
+        try {
+            const resp = await fetch(`${API}/games/${gameId}/characters/sheets`);
+            const sheets = await resp.json();
+            const section = document.getElementById('characters-section');
+            const container = document.getElementById('characters-list');
+
+            const names = Object.keys(sheets);
+            if (!names.length) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = '';
+            container.innerHTML = names.map(name => {
+                const entries = sheets[name];
+                const keys = Object.keys(entries);
+                const content = keys.map(key =>
+                    `<div class="sheet-entry">
+                        <span class="sheet-key">${esc(key)}</span>
+                        <div class="sheet-value">${renderSheetContent(entries[key])}</div>
+                    </div>`
+                ).join('');
+                return `<div class="character-sheet">
+                    <h4 class="sheet-name">${esc(name)}</h4>
+                    ${content}
+                </div>`;
+            }).join('');
+        } catch (e) {
+            console.error('Failed to load character sheets:', e);
+        }
+    }
+
+    function renderSheetContent(content) {
+        if (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined') {
+            return DOMPurify.sanitize(marked.parse(content || ''));
+        }
+        return esc(content);
     }
 
     // --- Helpers ---
