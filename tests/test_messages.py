@@ -11,10 +11,10 @@ from tests.conftest import auth_header, get_session_token, unwrap_messages
 
 
 @pytest.mark.asyncio
-async def test_post_message(client: AsyncClient, dm_agent: dict, game_id: str):
-    token = await get_session_token(game_id, dm_agent["id"])
+async def test_post_message(client: AsyncClient, dm_agent: dict, started_game_id: str):
+    token = await get_session_token(started_game_id, dm_agent["id"])
     resp = await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": "The airlock hisses open.", "type": "narrative"},
         headers=auth_header(dm_agent, token),
     )
@@ -23,6 +23,19 @@ async def test_post_message(client: AsyncClient, dm_agent: dict, game_id: str):
     assert data["content"] == "The airlock hisses open."
     assert data["type"] == "narrative"
     assert data["agent_name"] == "TestDM"
+
+
+@pytest.mark.asyncio
+async def test_dm_cannot_post_narrative_before_start(client: AsyncClient, dm_agent: dict, game_id: str):
+    """DM should not be able to post narrative messages before the game starts."""
+    token = await get_session_token(game_id, dm_agent["id"])
+    resp = await client.post(
+        f"/games/{game_id}/messages",
+        json={"content": "The story begins...", "type": "narrative"},
+        headers=auth_header(dm_agent, token),
+    )
+    assert resp.status_code == 400
+    assert "not started" in resp.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -92,21 +105,21 @@ async def test_player_cannot_post_action_before_start(client: AsyncClient, dm_ag
 
 
 @pytest.mark.asyncio
-async def test_get_messages(client: AsyncClient, dm_agent: dict, game_id: str):
-    token = await get_session_token(game_id, dm_agent["id"])
+async def test_get_messages(client: AsyncClient, dm_agent: dict, started_game_id: str):
+    token = await get_session_token(started_game_id, dm_agent["id"])
     headers = auth_header(dm_agent, token)
     await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": "Message 1", "type": "narrative"},
         headers=headers,
     )
     await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": "Message 2", "type": "narrative"},
         headers=headers,
     )
 
-    resp = await client.get(f"/games/{game_id}/messages")
+    resp = await client.get(f"/games/{started_game_id}/messages")
     assert resp.status_code == 200
     messages = unwrap_messages(resp.json())
     # System message from game creation + 2 posted messages
@@ -114,23 +127,23 @@ async def test_get_messages(client: AsyncClient, dm_agent: dict, game_id: str):
 
 
 @pytest.mark.asyncio
-async def test_poll_messages_after(client: AsyncClient, dm_agent: dict, game_id: str):
-    token = await get_session_token(game_id, dm_agent["id"])
+async def test_poll_messages_after(client: AsyncClient, dm_agent: dict, started_game_id: str):
+    token = await get_session_token(started_game_id, dm_agent["id"])
     headers = auth_header(dm_agent, token)
     r1 = await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": "First", "type": "narrative"},
         headers=headers,
     )
     first_id = r1.json()["id"]
 
     await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": "Second", "type": "narrative"},
         headers=headers,
     )
 
-    resp = await client.get(f"/games/{game_id}/messages?after={first_id}")
+    resp = await client.get(f"/games/{started_game_id}/messages?after={first_id}")
     assert resp.status_code == 200
     messages = unwrap_messages(resp.json())
     assert len(messages) == 1
@@ -138,15 +151,15 @@ async def test_poll_messages_after(client: AsyncClient, dm_agent: dict, game_id:
 
 
 @pytest.mark.asyncio
-async def test_get_single_message(client: AsyncClient, dm_agent: dict, game_id: str):
-    token = await get_session_token(game_id, dm_agent["id"])
+async def test_get_single_message(client: AsyncClient, dm_agent: dict, started_game_id: str):
+    token = await get_session_token(started_game_id, dm_agent["id"])
     r = await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": "Test msg", "type": "narrative"},
         headers=auth_header(dm_agent, token),
     )
     msg_id = r.json()["id"]
-    resp = await client.get(f"/games/{game_id}/messages/{msg_id}")
+    resp = await client.get(f"/games/{started_game_id}/messages/{msg_id}")
     assert resp.status_code == 200
     assert resp.json()["content"] == "Test msg"
 
@@ -172,16 +185,16 @@ async def test_ooc_message(client: AsyncClient, dm_agent: dict, player_agent: di
 
 @pytest.mark.asyncio
 async def test_whisper_hidden_from_spectators(
-    client: AsyncClient, dm_agent: dict, player_agent: dict, game_id: str
+    client: AsyncClient, dm_agent: dict, player_agent: dict, started_game_id: str
 ):
     """Whispered messages (to_agents set) should be hidden from unauthenticated spectators."""
-    join_resp = await client.post(f"/games/{game_id}/join", json={}, headers=auth_header(player_agent))
+    join_resp = await client.post(f"/games/{started_game_id}/join", json={}, headers=auth_header(player_agent))
     player_token = join_resp.json()["session_token"]
-    dm_token = await get_session_token(game_id, dm_agent["id"])
+    dm_token = await get_session_token(started_game_id, dm_agent["id"])
 
     # DM whispers to the player
     resp = await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={
             "content": "Secret info for you only",
             "type": "narrative",
@@ -194,13 +207,13 @@ async def test_whisper_hidden_from_spectators(
 
     # DM posts a public message
     await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": "Everyone hears this", "type": "narrative"},
         headers=auth_header(dm_agent, dm_token),
     )
 
     # Spectator (no auth) should not see the whisper
-    resp = await client.get(f"/games/{game_id}/messages")
+    resp = await client.get(f"/games/{started_game_id}/messages")
     spectator_msgs = unwrap_messages(resp.json())
     spectator_ids = [m["id"] for m in spectator_msgs]
     assert whisper_id not in spectator_ids
@@ -208,7 +221,7 @@ async def test_whisper_hidden_from_spectators(
 
     # Recipient should see the whisper
     resp = await client.get(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         headers=auth_header(player_agent),
     )
     recipient_msgs = unwrap_messages(resp.json())
@@ -217,7 +230,7 @@ async def test_whisper_hidden_from_spectators(
 
     # Sender (DM) should also see the whisper
     resp = await client.get(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         headers=auth_header(dm_agent),
     )
     sender_msgs = unwrap_messages(resp.json())
@@ -225,12 +238,12 @@ async def test_whisper_hidden_from_spectators(
     assert whisper_id in sender_ids
 
     # Single message endpoint: spectator should get 404
-    resp = await client.get(f"/games/{game_id}/messages/{whisper_id}")
+    resp = await client.get(f"/games/{started_game_id}/messages/{whisper_id}")
     assert resp.status_code == 404
 
     # Single message endpoint: recipient should see it
     resp = await client.get(
-        f"/games/{game_id}/messages/{whisper_id}",
+        f"/games/{started_game_id}/messages/{whisper_id}",
         headers=auth_header(player_agent),
     )
     assert resp.status_code == 200
@@ -272,18 +285,18 @@ async def test_messages_include_role_instructions(
 
 @pytest.mark.asyncio
 async def test_post_with_correct_after_succeeds(
-    client: AsyncClient, dm_agent: dict, game_id: str
+    client: AsyncClient, dm_agent: dict, started_game_id: str
 ):
     """Posting with `after` matching the latest message succeeds."""
-    token = await get_session_token(game_id, dm_agent["id"])
+    token = await get_session_token(started_game_id, dm_agent["id"])
     headers = auth_header(dm_agent, token)
 
     # Get the latest message ID from the channel
-    resp = await client.get(f"/games/{game_id}/messages", headers=headers)
+    resp = await client.get(f"/games/{started_game_id}/messages", headers=headers)
     latest_id = resp.json()["latest_message_id"]
 
     resp = await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": "Up to date!", "type": "narrative", "after": latest_id},
         headers=headers,
     )
@@ -293,15 +306,15 @@ async def test_post_with_correct_after_succeeds(
 
 @pytest.mark.asyncio
 async def test_post_with_stale_after_rejected(
-    client: AsyncClient, dm_agent: dict, game_id: str
+    client: AsyncClient, dm_agent: dict, started_game_id: str
 ):
     """Posting with a stale `after` ID returns 409 Conflict."""
-    token = await get_session_token(game_id, dm_agent["id"])
+    token = await get_session_token(started_game_id, dm_agent["id"])
     headers = auth_header(dm_agent, token)
 
     # Post a first message and capture its ID
     r1 = await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": "First", "type": "narrative"},
         headers=headers,
     )
@@ -309,14 +322,14 @@ async def test_post_with_stale_after_rejected(
 
     # Post a second message — first_id is now stale
     await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": "Second", "type": "narrative"},
         headers=headers,
     )
 
     # Try to post with the stale first_id as `after`
     resp = await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": "Stale!", "type": "narrative", "after": first_id},
         headers=headers,
     )
@@ -326,20 +339,20 @@ async def test_post_with_stale_after_rejected(
 
 @pytest.mark.asyncio
 async def test_post_without_after_always_succeeds(
-    client: AsyncClient, dm_agent: dict, game_id: str
+    client: AsyncClient, dm_agent: dict, started_game_id: str
 ):
     """Posting without `after` is always allowed (backwards compatible)."""
-    token = await get_session_token(game_id, dm_agent["id"])
+    token = await get_session_token(started_game_id, dm_agent["id"])
     headers = auth_header(dm_agent, token)
 
     await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": "First", "type": "narrative"},
         headers=headers,
     )
     # No `after` field — should succeed regardless of existing messages
     resp = await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": "Second without after", "type": "narrative"},
         headers=headers,
     )
@@ -348,20 +361,20 @@ async def test_post_without_after_always_succeeds(
 
 @pytest.mark.asyncio
 async def test_latest_message_id_in_response(
-    client: AsyncClient, dm_agent: dict, game_id: str
+    client: AsyncClient, dm_agent: dict, started_game_id: str
 ):
     """GET messages response includes latest_message_id tracking field."""
-    token = await get_session_token(game_id, dm_agent["id"])
+    token = await get_session_token(started_game_id, dm_agent["id"])
     headers = auth_header(dm_agent, token)
 
     r1 = await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": "Hello", "type": "narrative"},
         headers=headers,
     )
     msg_id = r1.json()["id"]
 
-    resp = await client.get(f"/games/{game_id}/messages", headers=headers)
+    resp = await client.get(f"/games/{started_game_id}/messages", headers=headers)
     data = resp.json()
     assert "latest_message_id" in data
     assert data["latest_message_id"] == msg_id
@@ -372,16 +385,16 @@ async def test_latest_message_id_in_response(
 
 @pytest.mark.asyncio
 async def test_dm_json_narration_extracted(
-    client: AsyncClient, dm_agent: dict, game_id: str
+    client: AsyncClient, dm_agent: dict, started_game_id: str
 ):
     """DM posts JSON with narration+respond — narration extracted, respond in metadata."""
-    token = await get_session_token(game_id, dm_agent["id"])
+    token = await get_session_token(started_game_id, dm_agent["id"])
     payload = json.dumps({
         "narration": "The lights flicker and die.",
         "respond": ["Rook"],
     })
     resp = await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": payload, "type": "narrative"},
         headers=auth_header(dm_agent, token),
     )
@@ -393,16 +406,16 @@ async def test_dm_json_narration_extracted(
 
 @pytest.mark.asyncio
 async def test_dm_json_whispers_auto_posted(
-    client: AsyncClient, dm_agent: dict, player_agent: dict, game_id: str
+    client: AsyncClient, dm_agent: dict, player_agent: dict, started_game_id: str
 ):
     """DM posts JSON with whispers — whispers auto-posted as separate messages."""
     join_resp = await client.post(
-        f"/games/{game_id}/join",
+        f"/games/{started_game_id}/join",
         json={"character_name": "Rook"},
         headers=auth_header(player_agent),
     )
     player_token = join_resp.json()["session_token"]
-    token = await get_session_token(game_id, dm_agent["id"])
+    token = await get_session_token(started_game_id, dm_agent["id"])
 
     payload = json.dumps({
         "narration": "The corridor stretches ahead.",
@@ -412,7 +425,7 @@ async def test_dm_json_whispers_auto_posted(
         ],
     })
     resp = await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": payload, "type": "narrative"},
         headers=auth_header(dm_agent, token),
     )
@@ -421,7 +434,7 @@ async def test_dm_json_whispers_auto_posted(
 
     # The whisper should appear as a separate message visible to the player
     resp = await client.get(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         headers=auth_header(player_agent),
     )
     msgs = unwrap_messages(resp.json())
@@ -432,12 +445,12 @@ async def test_dm_json_whispers_auto_posted(
 
 @pytest.mark.asyncio
 async def test_dm_plain_text_unchanged(
-    client: AsyncClient, dm_agent: dict, game_id: str
+    client: AsyncClient, dm_agent: dict, started_game_id: str
 ):
     """DM posts plain text — content unchanged (no false positive extraction)."""
-    token = await get_session_token(game_id, dm_agent["id"])
+    token = await get_session_token(started_game_id, dm_agent["id"])
     resp = await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": "The airlock hisses open.", "type": "narrative"},
         headers=auth_header(dm_agent, token),
     )
@@ -470,13 +483,13 @@ async def test_player_json_not_extracted(
 
 @pytest.mark.asyncio
 async def test_dm_json_without_narration_unchanged(
-    client: AsyncClient, dm_agent: dict, game_id: str
+    client: AsyncClient, dm_agent: dict, started_game_id: str
 ):
     """DM posts JSON without narration key — content unchanged."""
-    token = await get_session_token(game_id, dm_agent["id"])
+    token = await get_session_token(started_game_id, dm_agent["id"])
     payload = json.dumps({"action": "roll", "target": "Rook"})
     resp = await client.post(
-        f"/games/{game_id}/messages",
+        f"/games/{started_game_id}/messages",
         json={"content": payload, "type": "narrative"},
         headers=auth_header(dm_agent, token),
     )

@@ -92,3 +92,22 @@ async def game_id(client: AsyncClient, dm_agent: dict) -> str:
     )
     assert resp.status_code == 200
     return resp.json()["id"]
+
+
+@pytest_asyncio.fixture
+async def started_game_id(client: AsyncClient, dm_agent: dict) -> str:
+    """Create and start a game, return its ID."""
+    resp = await client.post(
+        "/lobby",
+        json={"name": "Started Test Game"},
+        headers=auth_header(dm_agent),
+    )
+    assert resp.status_code == 200
+    gid = resp.json()["id"]
+    token = await get_session_token(gid, dm_agent["id"])
+    resp = await client.post(
+        f"/games/{gid}/start",
+        headers=auth_header(dm_agent, token),
+    )
+    assert resp.status_code == 200
+    return gid
