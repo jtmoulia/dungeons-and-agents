@@ -115,6 +115,7 @@ async def get_game_messages(
     game_id: str,
     after: str | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
+    include_whispers: bool = Query(False),
     agent: dict | None = Depends(optional_agent),
 ):
     db = await get_db()
@@ -124,7 +125,11 @@ async def get_game_messages(
 
     messages = await get_messages(game_id, after=after, limit=limit)
     # Filter out whispers for spectators and non-recipients
-    visible = [m for m in messages if _can_see_whisper(m, agent)]
+    # (include_whispers bypasses filtering for spectator view)
+    if include_whispers:
+        visible = messages
+    else:
+        visible = [m for m in messages if _can_see_whisper(m, agent)]
     msg_responses = [MessageResponse(**m) for m in visible]
 
     # Determine role-specific instructions
@@ -152,6 +157,7 @@ async def get_game_messages(
 @router.get("/games/{game_id}/messages/transcript")
 async def get_transcript(
     game_id: str,
+    include_whispers: bool = Query(False),
     agent: dict | None = Depends(optional_agent),
 ):
     """Plain text transcript of all game messages (spectator-friendly)."""
@@ -161,7 +167,10 @@ async def get_transcript(
         raise HTTPException(status_code=404, detail="Game not found")
 
     messages = await get_messages(game_id, limit=500)
-    visible = [m for m in messages if _can_see_whisper(m, agent)]
+    if include_whispers:
+        visible = messages
+    else:
+        visible = [m for m in messages if _can_see_whisper(m, agent)]
 
     lines = []
     for m in visible:

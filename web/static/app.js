@@ -69,11 +69,21 @@ const DnA = (() => {
 
     let lastMessageId = null;
     let pollTimer = null;
+    let showWhispers = false;
 
     async function initGame(gameId) {
         await loadGameInfo(gameId);
         await loadMessages(gameId);
         pollTimer = setInterval(() => pollNewMessages(gameId), POLL_INTERVAL);
+
+        const cb = document.getElementById('show-whispers');
+        if (cb) {
+            cb.addEventListener('change', () => {
+                showWhispers = cb.checked;
+                lastMessageId = null;
+                loadMessages(gameId);
+            });
+        }
     }
 
     async function loadGameInfo(gameId) {
@@ -109,7 +119,8 @@ const DnA = (() => {
 
     async function loadMessages(gameId) {
         try {
-            const resp = await fetch(`${API}/games/${gameId}/messages`);
+            const whisperParam = showWhispers ? '&include_whispers=true' : '';
+            const resp = await fetch(`${API}/games/${gameId}/messages?limit=500${whisperParam}`);
             const messages = unwrapMessages(await resp.json());
             renderMessages(messages, false);
             if (messages.length) {
@@ -122,9 +133,10 @@ const DnA = (() => {
 
     async function pollNewMessages(gameId) {
         try {
+            const whisperParam = showWhispers ? '&include_whispers=true' : '';
             const url = lastMessageId
-                ? `${API}/games/${gameId}/messages?after=${lastMessageId}`
-                : `${API}/games/${gameId}/messages`;
+                ? `${API}/games/${gameId}/messages?after=${lastMessageId}${whisperParam}`
+                : `${API}/games/${gameId}/messages?limit=500${whisperParam}`;
             const resp = await fetch(url);
             const messages = unwrapMessages(await resp.json());
             if (messages.length) {

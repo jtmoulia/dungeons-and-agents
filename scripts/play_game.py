@@ -4,6 +4,10 @@
 Each participant (DM + players) is backed by a Claude LLM call that generates
 all dialogue and narration dynamically based on the evolving game transcript.
 
+The orchestrator is intentionally thin — it handles registration, setup, and
+the turn loop, but the DM agent drives pacing, whispers, and narrative flow
+through its system prompt and the server-side instructions.
+
 Usage:
     # Start the server first:
     uv run uvicorn server.app:app --port 8111
@@ -211,74 +215,6 @@ CHARACTERS = {
 
 
 # ---------------------------------------------------------------------------
-# Pacing hints for the DM
-# ---------------------------------------------------------------------------
-
-def get_pacing_hints(total_rounds: int) -> list[str]:
-    """Generate pacing hints scaled to the total number of rounds."""
-    if total_rounds <= 4:
-        return [
-            "Set the scene: the hull breach alarm, the emergency. Introduce the immediate "
-            "danger — the ship is damaged, something is aboard. Address each player character "
-            "by name and give them a situation to react to.",
-
-            "Escalate: reveal more about the creatures, introduce NPC Science Officer Lin "
-            "who knows too much. Build tension with sounds, failing systems, and dread.",
-
-            "Climax: the crew reaches the cargo bay and confronts the queen. Present the "
-            "choice — give her the sample, destroy it, or fight. Let the players decide.",
-
-            "Resolution and epilogue. Narrate the outcome of the players' choice. The queen "
-            "leaves or attacks. Wrap up the story — rescue is coming, the truth about "
-            "Stellaris is out. End on a atmospheric note.",
-        ]
-
-    hints = []
-    # Scale phases across available rounds
-    phase_size = max(1, total_rounds // 5)
-
-    for i in range(total_rounds):
-        phase = i // phase_size if phase_size > 0 else 0
-
-        if phase == 0:
-            hints.append(
-                "Introduce the emergency. The klaxon, the hull breach, the ship in crisis. "
-                "Address each player by their character name and give them a starting "
-                "situation to react to. Establish the setting aboard the MSV Koronis."
-            )
-        elif phase == 1:
-            hints.append(
-                "Escalate tension. Reveal more about the creatures — sounds in the vents, "
-                "claw marks, a dead crew member. Introduce NPC Science Officer Lin, who is "
-                "performing an autopsy and seems to know too much about these things. "
-                "Introduce NPC Delacroix who guards a mysterious crate in the cargo bay."
-            )
-        elif phase == 2:
-            hints.append(
-                "Mid-game development. The crew discovers the corporate conspiracy — "
-                "Stellaris Corp knew about the creatures, the KX-7 sample is a pheromone "
-                "beacon. Lin is a corporate handler. The captain is missing. Build toward "
-                "the cargo bay confrontation."
-            )
-        elif phase == 3:
-            hints.append(
-                "Climax. The crew reaches the cargo bay and faces the Void Stalker Queen "
-                "anchored to the breach. Present the three-way choice: give her the sample "
-                "(she leaves peacefully), destroy it (she rages), or fight her. Let the "
-                "players decide."
-            )
-        else:
-            hints.append(
-                "Resolution and epilogue. Narrate the outcome of the players' choice. "
-                "Wrap up loose threads — Lin's testimony, the distress signal, the crew's "
-                "survival. End on an atmospheric, contemplative note. The stars are beautiful "
-                "if you don't think about what lives between them."
-            )
-
-    return hints[:total_rounds]
-
-
-# ---------------------------------------------------------------------------
 # Main orchestrator
 # ---------------------------------------------------------------------------
 
@@ -334,20 +270,6 @@ def main():
     dm_tok = game_resp["session_token"]
     print(f"  Game: {game_resp['name']} ({game_id[:8]}...)")
 
-    # ── Players join ──────────────────────────────────────────────────
-    print("\n=== Players joining ===")
-
-    def join(agent: dict, character_name: str) -> str:
-        resp = http.post(
-            f"/games/{game_id}/join",
-            json={"character_name": character_name},
-            headers={"Authorization": f"Bearer {agent['api_key']}"},
-        )
-        resp.raise_for_status()
-        tok = resp.json()["session_token"]
-        print(f"  {agent['display_name']} joined as {character_name}")
-        return tok
-
     # ── Engine setup ─────────────────────────────────────────────────
     engine = None
     combat_engine = None
@@ -360,8 +282,18 @@ def main():
         combat_engine = CombatEngine(engine)
         print("  Engine ready (d100 roll-under mechanics)")
 
-    # ── Players join ──────────────────────────────────────────────────
-    print("\n=== Players joining ===")
+    # ── Helpers ────────────────────────────────────────────────────────
+
+    def join(agent: dict, character_name: str) -> str:
+        resp = http.post(
+            f"/games/{game_id}/join",
+            json={"character_name": character_name},
+            headers={"Authorization": f"Bearer {agent['api_key']}"},
+        )
+        resp.raise_for_status()
+        tok = resp.json()["session_token"]
+        print(f"  {agent['display_name']} joined as {character_name}")
+        return tok
 
     def _create_engine_character(character_name: str) -> None:
         """Create a character in the local engine and equip them."""
@@ -382,25 +314,6 @@ def main():
             engine._save(state)
         print(f"    Engine: {character_name} ({char_class.value}) created with equipment")
 
-    alice_tok = join(alice_agent, "Reyes")
-    _create_engine_character("Reyes")
-    bob_tok = join(bob_agent, "Okafor")
-    _create_engine_character("Okafor")
-
-    # Carol joins mid-session (after round 3)
-
-    # ── Start game ────────────────────────────────────────────────────
-    print("\n=== Starting game ===")
-    http.post(
-        f"/games/{game_id}/start",
-        headers={
-            "Authorization": f"Bearer {dm_agent['api_key']}",
-            "X-Session-Token": dm_tok,
-        },
-    ).raise_for_status()
-    print("  Game started!")
-
-    # ── Whisper character stats to players ─────────────────────────────
     def _format_character_sheet(name: str) -> str | None:
         """Format a concise character sheet from the engine state."""
         if not use_engine:
@@ -423,6 +336,26 @@ def main():
             f"Armor: {armor} (AP {char.armor.ap if char.armor else 0})\n"
             f"Inventory: {inventory}"
         )
+
+    # ── Players join ──────────────────────────────────────────────────
+    print("\n=== Players joining ===")
+    alice_tok = join(alice_agent, "Reyes")
+    _create_engine_character("Reyes")
+    bob_tok = join(bob_agent, "Okafor")
+    _create_engine_character("Okafor")
+
+    # Carol joins mid-session (after round 3)
+
+    # ── Start game ────────────────────────────────────────────────────
+    print("\n=== Starting game ===")
+    http.post(
+        f"/games/{game_id}/start",
+        headers={
+            "Authorization": f"Bearer {dm_agent['api_key']}",
+            "X-Session-Token": dm_tok,
+        },
+    ).raise_for_status()
+    print("  Game started!")
 
     # ── Build LLM agents ─────────────────────────────────────────────
     if use_engine:
@@ -469,51 +402,52 @@ def main():
     active_players: list[AIPlayer] = [reyes, okafor]
     tran: AIPlayer | None = None  # joins later
 
-    # ── Whisper character stats ───────────────────────────────────────
+    # ── DM briefing ───────────────────────────────────────────────────
+    # Give the DM all the context it needs to self-direct pacing.
+    char_summaries = []
+    for name, agent in [("Reyes", alice_agent), ("Okafor", bob_agent)]:
+        sheet = _format_character_sheet(name)
+        char_summaries.append(f"- {name} (agent: {agent['id']})" + (f"\n{sheet}" if sheet else ""))
+    joining_later = f"- Tran (agent: {carol_agent['id']}) — joins mid-session around round 3"
     if use_engine:
-        print("\n=== Sending character stats ===")
-        player_agent_map = {"Reyes": alice_agent, "Okafor": bob_agent}
-        for char_name, pagent in player_agent_map.items():
-            sheet = _format_character_sheet(char_name)
-            if sheet:
-                dm.whisper(
-                    [pagent["id"]],
-                    f"Welcome {char_name} to the game and share their character sheet "
-                    f"so they know their capabilities. Keep it in character — brief and "
-                    f"practical.\n\nCharacter sheet:\n{sheet}",
-                )
-                print(f"  Sent stats to {char_name}")
+        tran_sheet = _format_character_sheet("Tran")
+        if tran_sheet:
+            joining_later += f"\n{tran_sheet}"
 
-    # ── Character introductions ───────────────────────────────────────
-    INTRO_PROMPT = (
-        "Briefly introduce yourself in 1-2 sentences. Describe how you look "
-        "right now — what you're wearing, what you're carrying, your demeanor. "
-        "No backstory, just a quick visual snapshot as others would see you."
+    briefing = (
+        f"Game briefing: you have {args.rounds} rounds total to tell this story. "
+        f"Pace yourself — introduction, escalation, climax, resolution.\n\n"
+        f"Current players:\n" + "\n".join(char_summaries) + "\n\n"
+        f"Joining later:\n{joining_later}\n\n"
+        f"When a player joins, welcome them with a whisper sharing their capabilities "
+        f"(use to_agents), then fold them into the scene.\n\n"
+        f"Use whispers throughout the game to share private observations, hints, or "
+        f"unsettling details with individual characters when dramatically appropriate.\n\n"
+        f"Start the game now. Set the scene and prompt the active players."
     )
-    print("\n=== Character introductions ===")
+
+    # ── Round 0: DM opens ─────────────────────────────────────────────
+    print(f"\n{'─' * 60}")
+    print(f"  ROUND 1/{args.rounds}")
+    print(f"{'─' * 60}")
+
+    print(f"\n  [Warden narrating...]", flush=True)
+    narration = dm.narrate(briefing)
+    print(f"  [Warden done]", flush=True)
+
+    # Let all active players introduce themselves
     for player in active_players:
-        print(f"  [{player.name} introducing...]", flush=True)
-        player.take_turn(INTRO_PROMPT)
+        print(f"  [{player.name} acting...]", flush=True)
+        player.take_turn(
+            "The DM just set the scene. Introduce yourself briefly (1-2 sentences — "
+            "what you look like, what you're doing) then react to the situation."
+        )
         print(f"  [{player.name} done]", flush=True)
 
-    # ── Emoji selection ────────────────────────────────────────────────
-    character_emojis: dict[str, str] = {}
-    EMOJI_PROMPT = "Pick ONE emoji that represents your character. Reply with just the emoji, nothing else."
-    print("\n=== Emoji selection ===")
-    for player in active_players:
-        print(f"  [{player.name} picking emoji...]", flush=True)
-        emoji_resp = player.generate(EMOJI_PROMPT)
-        # Extract the first emoji-like character from the response
-        emoji = emoji_resp.strip()[:2]  # emoji can be 1-2 chars (with variation selectors)
-        character_emojis[player.name] = emoji
-        print(f"  {player.name}: {emoji}")
-    print(f"  Emojis: {character_emojis}")
+    # ── Game loop (remaining rounds) ──────────────────────────────────
+    carol_join_round = min(3, args.rounds - 2)
 
-    # ── Game loop ─────────────────────────────────────────────────────
-    pacing = get_pacing_hints(args.rounds)
-    carol_join_round = min(3, args.rounds - 2)  # join after round 3 (or earlier for short games)
-
-    for round_num in range(args.rounds):
+    for round_num in range(1, args.rounds):
         round_label = round_num + 1
         print(f"\n{'─' * 60}")
         print(f"  ROUND {round_label}/{args.rounds}")
@@ -533,115 +467,38 @@ def main():
                 game_id=game_id,
             )
             active_players.append(tran)
-            # Whisper Tran's stats
-            if use_engine:
-                sheet = _format_character_sheet("Tran")
-                if sheet:
-                    dm.whisper(
-                        [carol_agent["id"]],
-                        f"Welcome Tran to the game and share their character sheet "
-                        f"so they know their capabilities. Keep it in character — brief "
-                        f"and practical.\n\nCharacter sheet:\n{sheet}",
-                    )
-                    print(f"  Sent stats to Tran")
 
-            print(f"  [Tran introducing...]", flush=True)
-            tran.take_turn(INTRO_PROMPT)
-            print(f"  [Tran done]", flush=True)
-
-            # Pick emoji for Tran
-            print(f"  [Tran picking emoji...]", flush=True)
-            emoji_resp = tran.generate(EMOJI_PROMPT)
-            emoji = emoji_resp.strip()[:2]
-            character_emojis["Tran"] = emoji
-            print(f"  Tran: {emoji}")
-
-        # DM narrates
-        hint = pacing[round_num]
+        # DM narrates — minimal instruction, let it drive
         active_names = ", ".join(p.name for p in active_players)
-        engine_hint = ""
-        if use_engine:
-            engine_hint = (
-                "\n\nYou have game engine tools available. Consider calling for rolls "
-                "when players attempt risky actions. Use combat mechanics for significant "
-                "confrontations (e.g. the Void Stalker encounter). Not every action needs "
-                "a roll — let routine tasks succeed automatically."
+        is_last = round_label == args.rounds
+        round_instruction = f"Round {round_label}/{args.rounds}. Active players: {active_names}."
+        if is_last:
+            round_instruction += (
+                " This is the FINAL round. Wrap up the story — resolve the crisis, "
+                "narrate the aftermath, and end on a strong note."
             )
-        full_hint = (
-            f"{hint}\n\nActive players: {active_names}. "
-            f"Remember: respond with JSON containing \"narration\" and \"respond\" fields."
-            f"{engine_hint}"
-        )
+
         print(f"\n  [Warden narrating...]", flush=True)
-        narration = dm.narrate(full_hint)
+        narration = dm.narrate(round_instruction)
         print(f"  [Warden done]", flush=True)
 
-        # Determine responders: filter DM's respond list by who's actually
-        # mentioned in the narration text to prevent over-broad responses.
-        narration_text = narration.get("content", "").lower()
+        # Determine responders from DM's respond list
         respond_names = narration.get("_respond", [])
         if respond_names:
             tagged = {name.strip().lower() for name in respond_names}
-            # Only include players who are both in the respond list AND
-            # mentioned by name in the narration itself.
-            mentioned = {p.name for p in active_players if p.name.lower() in narration_text}
-            responders = [p for p in active_players if p.name.lower() in tagged and p.name in mentioned]
+            responders = [p for p in active_players if p.name.lower() in tagged]
             if not responders:
-                # Fallback: trust the DM's list if name-check filtered everyone
-                responders = [p for p in active_players if p.name.lower() in tagged]
-            if not responders:
-                print(f"  [WARN: respond names {respond_names} matched no active players, falling back to all]", flush=True)
                 responders = active_players
-            else:
-                print(f"  [Responding: {', '.join(p.name for p in responders)}]", flush=True)
+            print(f"  [Responding: {', '.join(p.name for p in responders)}]", flush=True)
         else:
-            # Fallback: everyone responds
-            print(f"  [WARN: no respond list from DM, all players respond]", flush=True)
             responders = active_players
 
         for player in responders:
             print(f"  [{player.name} acting...]", flush=True)
-            player.take_turn(
-                f"Respond as {player.name}. Keep it to 1-4 sentences — an action, "
-                f"a line of dialogue, or a quick reaction. No inner monologue."
-            )
+            player.take_turn(f"Respond as {player.name}.")
             print(f"  [{player.name} done]", flush=True)
 
-        # Occasional DM whisper (rounds 2 and 5)
-        if round_num == 1 and len(active_players) >= 1:
-            print(f"  [Warden whispering to {active_players[0].name}...]")
-            dm.whisper(
-                [alice_agent["id"]],
-                f"Generate a private whisper to {active_players[0].name} only. "
-                f"Reveal something unsettling that only they notice — a detail, "
-                f"a sound, something glimpsed. Keep it to 1-2 sentences.",
-            )
-            print(f"  [whisper sent]")
-        elif round_num == 4 and len(active_players) >= 2:
-            print(f"  [Warden whispering to {active_players[1].name}...]")
-            dm.whisper(
-                [bob_agent["id"]],
-                f"Generate a private whisper to {active_players[1].name} only. "
-                f"They notice something suspicious about Science Officer Lin — "
-                f"a corporate implant, a hidden device, a telling reaction. "
-                f"Keep it to 1-2 sentences.",
-            )
-            print(f"  [whisper sent]")
-
     # ── End game ──────────────────────────────────────────────────────
-    print(f"\n{'─' * 60}")
-    print("  EPILOGUE")
-    print(f"{'─' * 60}")
-
-    print("\n  [Warden narrating epilogue...]")
-    dm.narrate(
-        "Write the final epilogue. The crisis is resolved (however the players chose "
-        "to handle it). Describe the aftermath: the crew waiting for rescue, the "
-        "truth about Stellaris transmitted into the void, the quiet after the storm. "
-        "End on a contemplative, atmospheric note. This is the last message of the game."
-    )
-    print("  [Warden done]")
-
     print("\n=== Ending game ===")
     http.post(
         f"/games/{game_id}/end",
@@ -658,7 +515,7 @@ def main():
     print(f"{'=' * 70}")
 
     data = http.get(
-        f"/games/{game_id}/messages?limit=500",
+        f"/games/{game_id}/messages?limit=500&include_whispers=true",
         headers={
             "Authorization": f"Bearer {dm_agent['api_key']}",
             "X-Session-Token": dm_tok,
@@ -672,7 +529,7 @@ def main():
     RESET = "\033[0m"
     CYAN = "\033[36m"
     MAGENTA = "\033[35m"
-    PLAYER_COLORS = ["\033[32m", "\033[33m", "\033[34m", "\033[31m"]  # green, yellow, blue, red
+    PLAYER_COLORS = ["\033[32m", "\033[33m", "\033[34m", "\033[31m"]
     color_map: dict[str, str] = {}
 
     def player_color(name: str) -> str:
@@ -689,10 +546,8 @@ def main():
             char_names[an] = cn
 
     def display_name(agent_name: str) -> str:
-        """Character name with optional emoji prefix."""
-        cn = char_names.get(agent_name, agent_name)
-        emoji = character_emojis.get(cn, "")
-        return f"{emoji} {cn}" if emoji else cn
+        """Character name for display."""
+        return char_names.get(agent_name, agent_name)
 
     for msg in messages:
         sender = msg.get("agent_name") or "SYSTEM"
@@ -723,7 +578,7 @@ def main():
 
     print(f"\n{'=' * 70}")
     print(f"  Game ID: {game_id}")
-    print(f"  View in browser: {base}/game.html?id={game_id}")
+    print(f"  View in browser: {base}/web/game.html?id={game_id}")
     print(f"{'=' * 70}")
 
 

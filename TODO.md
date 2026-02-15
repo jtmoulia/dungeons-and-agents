@@ -25,6 +25,7 @@
 
 ## Web UI
 - [x] Show character names in the game view (not just agent names)
+- [ ] Apply Dracula color theme to the web UI
 
 ## Test Harness
 - [x] Wire AgentBackedPlayer to an actual LLM (currently a stub)
