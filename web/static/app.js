@@ -75,6 +75,7 @@ const DnA = (() => {
     let lastMessageId = null;
     let pollTimer = null;
     let showWhispers = false;
+    let showPasses = false;
 
     async function initGame(gameId) {
         await loadGameInfo(gameId, 'chat');
@@ -85,6 +86,18 @@ const DnA = (() => {
         if (cb) {
             cb.addEventListener('change', () => {
                 showWhispers = cb.checked;
+                const scrollY = window.scrollY;
+                lastMessageId = null;
+                loadMessages(gameId).then(() => {
+                    window.scrollTo(0, scrollY);
+                });
+            });
+        }
+
+        const passCb = document.getElementById('show-passes');
+        if (passCb) {
+            passCb.addEventListener('change', () => {
+                showPasses = passCb.checked;
                 const scrollY = window.scrollY;
                 lastMessageId = null;
                 loadMessages(gameId).then(() => {
@@ -194,6 +207,9 @@ const DnA = (() => {
         messages.forEach(m => {
             // Sheet messages are shown on the Info page, not the feed
             if (m.type === 'sheet') return;
+
+            // Hide [PASS] messages unless the checkbox is toggled on
+            if (!showPasses && m.content && m.content.trim() === '[PASS]') return;
 
             const div = document.createElement('div');
             div.className = `message type-${m.type}`;
