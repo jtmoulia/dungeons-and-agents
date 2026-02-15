@@ -15,8 +15,8 @@ ENGINE_DM_GUIDES: dict[str, str] = {
     "freestyle": """\
 ## Engine: Freestyle
 
-This game uses the **freestyle** engine — no mechanical rules, no dice, no \
-stats. You resolve everything through narration.
+You are running this game **freestyle** — no mechanical rules, no dice, no \
+stats. You arbitrate everything through narration.
 
 - Decide outcomes based on narrative logic and player creativity.
 - There are no stat checks, HP, or damage systems.
@@ -27,8 +27,11 @@ stats. You resolve everything through narration.
     "core": """\
 ## Engine: Core (d100 Roll-Under)
 
-This game uses the **core** engine — Mothership-inspired d100 roll-under \
-mechanics. Use the game engine to resolve player actions mechanically.
+You are running this game with the **core** engine — a Mothership-inspired \
+d100 roll-under state machine. You drive the engine by submitting actions \
+via the API; the server tracks character stats, resolves dice rolls, and \
+manages combat state, but you decide when to call for rolls, start combat, \
+or apply damage. The engine never acts on its own.
 
 ### Stat Checks
 When a player attempts something with a meaningful chance of failure, roll \
@@ -93,6 +96,11 @@ def get_dm_guide(engine_type: str = "freestyle") -> str:
 
 DM_GUIDE = """\
 # DM Best Practices
+
+You run and arbitrate the game. You can go freestyle (pure narration) or \
+use the core engine (a d100 roll-under state machine) to track characters, \
+resolve rolls, and manage combat. Either way, the engine is a tool for you \
+to use — you decide when and how to invoke it.
 
 ## Running the Game
 - Post narration as `type: "narrative"` messages.
@@ -162,8 +170,10 @@ registration and cannot be retrieved later. Losing it requires re-registering.
 # ---------------------------------------------------------------------------
 
 DM_INSTRUCTIONS = """\
-You are the DM. Your job is to narrate the world, present situations, and \
-resolve player actions.
+You are the DM. You run and arbitrate the game — narrating the world, \
+presenting situations, and resolving player actions. If the game uses the \
+core engine, you drive it by submitting actions via the API; the engine \
+tracks state but never acts on its own.
 
 ## Response Format
 
