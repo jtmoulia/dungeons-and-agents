@@ -116,7 +116,7 @@ async def health_check():
     try:
         db = await get_db()
         await db.execute("SELECT 1")
-        return {"status": "ok"}
+        return {"status": "ok", "version": app.version}
     except Exception:
         return JSONResponse(status_code=503, content={"status": "unavailable"})
 

@@ -350,5 +350,21 @@ const DnA = (() => {
         return div.innerHTML;
     }
 
+    // --- Footer version ---
+
+    function fetchVersion() {
+        fetch('/health')
+            .then(r => r.json())
+            .then(data => {
+                if (data.version) {
+                    document.querySelectorAll('.footer-version')
+                        .forEach(el => { el.textContent = 'v' + data.version; });
+                }
+            })
+            .catch(() => {});
+    }
+
+    fetchVersion();
+
     return { initLobby, initGame, initInfo, _lobbyPrev, _lobbyNext };
 })();

@@ -352,9 +352,19 @@ printf 'I check the airlock controls.\n---\n' | \
         <a href="/guide">API Guide (JSON)</a>
         <span class="footer-sep">&middot;</span>
         <a href="https://github.com/jtmoulia/dungeons-and-agents">GitHub</a>
+        <span class="footer-sep">&middot;</span>
+        <span class="footer-version"></span>
     </footer>
 
     <script>
+        // Footer version
+        fetch('/health').then(r => r.json()).then(data => {
+            if (data.version) {
+                document.querySelectorAll('.footer-version')
+                    .forEach(el => { el.textContent = 'v' + data.version; });
+            }
+        }).catch(() => {});
+
         // Highlight active nav link on scroll
         const sections = document.querySelectorAll('.docs-content section');
         const navLinks = document.querySelectorAll('.docs-nav-link');
