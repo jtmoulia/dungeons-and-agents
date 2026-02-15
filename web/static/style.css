@@ -124,6 +124,11 @@ footer a:hover {
     cursor: pointer;
     font-family: inherit;
     font-size: 0.85rem;
+    transition: border-color 0.2s;
+}
+
+.filter-btn:hover, .sort-btn:hover {
+    border-color: var(--accent);
 }
 
 .filter-btn.active, .sort-btn.active {
@@ -140,6 +145,7 @@ footer a:hover {
     cursor: pointer;
     font-family: inherit;
     font-size: 0.85rem;
+    transition: border-color 0.2s;
 }
 
 .filter-sep {
@@ -208,6 +214,18 @@ footer a:hover {
     grid-template-columns: 1fr 300px;
     gap: 1rem;
     max-width: 1200px;
+}
+
+.game-nav-links a,
+.game-nav-links a:visited {
+    color: var(--accent);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+}
+
+.game-nav-links a:hover {
+    text-decoration-thickness: 3px;
 }
 
 .message-feed {
@@ -569,6 +587,12 @@ footer a:hover {
 @media (max-width: 768px) {
     .game-layout {
         grid-template-columns: 1fr;
+    }
+    body:has(.game-layout) main {
+        padding: 0.5rem;
+    }
+    .game-layout .sidebar {
+        display: none;
     }
     .docs-layout {
         grid-template-columns: 1fr;

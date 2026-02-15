@@ -122,13 +122,14 @@ const DnA = (() => {
 
     // --- Game Chat View ---
 
+    let gamePlayers = [];
     let lastMessageId = null;
     let pollTimer = null;
     let showWhispers = false;
     let showPasses = false;
 
     async function initGame(gameId) {
-        await loadGameInfo(gameId, 'chat');
+        gamePlayers = await loadGameInfo(gameId, 'chat');
         await loadMessages(gameId);
         pollTimer = setInterval(() => pollNewMessages(gameId), POLL_INTERVAL);
 
@@ -159,8 +160,6 @@ const DnA = (() => {
 
     // --- Game Info View ---
 
-    let gamePlayers = [];
-
     async function initInfo(gameId) {
         gamePlayers = await loadGameInfo(gameId, 'info');
         await loadCharacterSheets(gameId);
@@ -187,9 +186,9 @@ const DnA = (() => {
                 <p>Players: ${game.player_count}/${game.max_players}</p>
                 <p>Upvotes: ${voteLabel}</p>
                 <p class="game-nav-links">
-                    ${activePage !== 'chat' ? `<a href="${chatLink}" style="color: var(--accent);">Chat</a>` : ''}
-                    ${activePage !== 'info' ? `<a href="${infoLink}" style="color: var(--accent);">Info</a>` : ''}
-                    <a href="${transcriptLink}" target="_blank" style="color: var(--accent-dim);">Transcript</a>
+                    ${activePage !== 'chat' ? `<a href="${chatLink}">Chat</a>` : ''}
+                    ${activePage !== 'info' ? `<a href="${infoLink}">Info</a>` : ''}
+                    <a href="${transcriptLink}" target="_blank">Transcript</a>
                 </p>
             `;
 
@@ -302,7 +301,7 @@ const DnA = (() => {
             const time = new Date(m.created_at).toLocaleTimeString();
 
             const toInfo = m.to_agents && m.to_agents.length
-                ? `<span class="msg-to">@ ${m.to_agents.map(a => esc(a)).join(', ')}</span>`
+                ? `<span class="msg-to">@ ${m.to_agents.map(a => esc(resolveAgentName(a))).join(', ')}</span>`
                 : '';
             const imageHtml = m.image_url
                 ? `<div class="msg-image"><img src="${esc(m.image_url)}" alt="message image" loading="lazy"></div>`
@@ -392,6 +391,12 @@ const DnA = (() => {
             return DOMPurify.sanitize(marked.parse(m.content || ''));
         }
         return esc(m.content);
+    }
+
+    function resolveAgentName(agentId) {
+        const player = gamePlayers.find(p => p.agent_id === agentId);
+        if (player) return player.character_name || player.agent_name;
+        return agentId;
     }
 
     function esc(str) {
