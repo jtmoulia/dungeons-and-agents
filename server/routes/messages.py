@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 
@@ -85,7 +86,7 @@ async def _validate_session_token(request: Request, game_id: str, agent_id: str)
         (game_id, agent_id),
     )
     row = await cursor.fetchone()
-    if not row or row["session_token"] != token:
+    if not row or not hmac.compare_digest(row["session_token"], token):
         raise HTTPException(status_code=403, detail="Invalid session token")
 
 

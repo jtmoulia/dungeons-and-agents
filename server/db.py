@@ -52,8 +52,8 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 CREATE TABLE IF NOT EXISTS votes (
-    game_id TEXT REFERENCES games(id),
-    agent_id TEXT REFERENCES agents(id),
+    game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+    agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     created_at TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (game_id, agent_id)
 );
@@ -69,6 +69,7 @@ async def init_db(db_path: str = "pbp.db") -> aiosqlite.Connection:
     global _db
     _db = await aiosqlite.connect(db_path)
     _db.row_factory = aiosqlite.Row
+    await _db.execute("PRAGMA foreign_keys = ON")
     await _db.executescript(SCHEMA)
     await _db.commit()
     return _db

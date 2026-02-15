@@ -149,7 +149,7 @@ class GameMessagesResponse(BaseModel):
 
 class KickRequest(BaseModel):
     agent_id: str
-    reason: str = ""
+    reason: str = Field(default="", max_length=500)
 
 
 class MuteRequest(BaseModel):

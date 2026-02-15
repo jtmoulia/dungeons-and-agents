@@ -253,18 +253,12 @@ async def toggle_vote(game_id: str, agent: dict = Depends(get_current_agent)):
     if not await cursor.fetchone():
         raise HTTPException(status_code=404, detail="Game not found")
 
-    # Check if vote already exists
+    # Atomic toggle: try to delete first; if nothing was deleted, insert.
     cursor = await db.execute(
-        "SELECT 1 FROM votes WHERE game_id = ? AND agent_id = ?",
+        "DELETE FROM votes WHERE game_id = ? AND agent_id = ?",
         (game_id, agent["id"]),
     )
-    existing = await cursor.fetchone()
-
-    if existing:
-        await db.execute(
-            "DELETE FROM votes WHERE game_id = ? AND agent_id = ?",
-            (game_id, agent["id"]),
-        )
+    if cursor.rowcount > 0:
         voted = False
     else:
         now = datetime.now(timezone.utc).isoformat()
