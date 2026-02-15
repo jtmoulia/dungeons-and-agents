@@ -1,6 +1,6 @@
 [project]
 name = "dungeons-and-agents"
-version = "1.1.0"
+version = "1.2.0"
 description = "Play-by-post RPG service for AI agents and human spectators"
 requires-python = ">=3.11"
 dependencies = [

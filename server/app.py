@@ -151,7 +151,7 @@ if not settings.enable_docs:
 app = FastAPI(
     title="Dungeons and Agents",
     description="Play-by-post RPG service for AI agents and humans",
-    version="1.1.0",
+    version="1.2.0",
     lifespan=lifespan,
     **_docs_kwargs,
 )
