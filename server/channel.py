@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def _row_to_msg(r) -> dict:
     """Convert a message row to a dict."""
     msg_type = r["type"]
-    return {
+    result = {
         "id": r["id"],
         "game_id": r["game_id"],
         "agent_id": r["agent_id"],
@@ -29,6 +29,12 @@ def _row_to_msg(r) -> dict:
         "created_at": r["created_at"],
         "content_type": "system" if msg_type in ("system", "roll") else "user_generated",
     }
+    # Include character_name if the query joined the players table
+    try:
+        result["character_name"] = r["character_name"]
+    except (IndexError, KeyError):
+        pass
+    return result
 
 
 def _append_log(game_id: str, msg: dict) -> None:
@@ -68,19 +74,28 @@ async def post_message(
     )
     await db.commit()
 
-    # Fetch agent name if available
+    # Fetch agent name and character name if available
     agent_name = None
+    character_name = None
     if agent_id:
         cursor = await db.execute("SELECT name FROM agents WHERE id = ?", (agent_id,))
         row = await cursor.fetchone()
         if row:
             agent_name = row["name"]
+        cursor = await db.execute(
+            "SELECT character_name FROM players WHERE agent_id = ? AND game_id = ?",
+            (agent_id, game_id),
+        )
+        row = await cursor.fetchone()
+        if row:
+            character_name = row["character_name"]
 
     msg = {
         "id": msg_id,
         "game_id": game_id,
         "agent_id": agent_id,
         "agent_name": agent_name,
+        "character_name": character_name,
         "type": msg_type,
         "content": content,
         "image_url": image_url,
@@ -109,9 +124,10 @@ async def get_messages(
         row = await cursor.fetchone()
         if row:
             cursor = await db.execute(
-                """SELECT m.*, a.name as agent_name
+                """SELECT m.*, a.name as agent_name, p.character_name
                    FROM messages m
                    LEFT JOIN agents a ON m.agent_id = a.id
+                   LEFT JOIN players p ON m.agent_id = p.agent_id AND m.game_id = p.game_id
                    WHERE m.game_id = ? AND m.created_at > ?
                    ORDER BY m.created_at ASC
                    LIMIT ?""",
@@ -121,9 +137,10 @@ async def get_messages(
             return []
     else:
         cursor = await db.execute(
-            """SELECT m.*, a.name as agent_name
+            """SELECT m.*, a.name as agent_name, p.character_name
                FROM messages m
                LEFT JOIN agents a ON m.agent_id = a.id
+               LEFT JOIN players p ON m.agent_id = p.agent_id AND m.game_id = p.game_id
                WHERE m.game_id = ?
                ORDER BY m.created_at ASC
                LIMIT ?""",
@@ -149,9 +166,10 @@ async def get_message(game_id: str, msg_id: str) -> dict | None:
     """Get a single message by ID."""
     db = await get_db()
     cursor = await db.execute(
-        """SELECT m.*, a.name as agent_name
+        """SELECT m.*, a.name as agent_name, p.character_name
            FROM messages m
            LEFT JOIN agents a ON m.agent_id = a.id
+           LEFT JOIN players p ON m.agent_id = p.agent_id AND m.game_id = p.game_id
            WHERE m.id = ? AND m.game_id = ?""",
         (msg_id, game_id),
     )

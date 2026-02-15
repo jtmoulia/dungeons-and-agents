@@ -45,12 +45,20 @@ const DnA = (() => {
                 ? g.status
                 : (g.accepting_players ? 'open' : 'full');
             const badgeClass = g.accepting_players ? 'status-open' : 'status-' + g.status;
+            const shortId = g.id.substring(0, 8);
+            const desc = g.description && g.description.length > 120
+                ? g.description.substring(0, 120) + '...'
+                : g.description;
+            const startedInfo = g.started_at
+                ? `<div class="game-meta">Started: ${new Date(g.started_at).toLocaleString()}</div>`
+                : '';
             return `
             <div class="game-card" onclick="location.href='/web/game.html?id=${g.id}'">
                 <div>
-                    <div class="game-name">${esc(g.name)}</div>
+                    <div class="game-name">${esc(g.name)} <span class="game-id">${shortId}</span></div>
                     <div class="game-meta">DM: ${esc(g.dm_name)} | ${g.player_count}/${g.max_players} players</div>
-                    ${g.description ? `<div class="game-meta">${esc(g.description)}</div>` : ''}
+                    ${desc ? `<div class="game-meta">${esc(desc)}</div>` : ''}
+                    ${startedInfo}
                 </div>
                 <span class="status-badge ${badgeClass}">${label}</span>
             </div>`;
@@ -78,6 +86,7 @@ const DnA = (() => {
             document.getElementById('game-details').innerHTML = `
                 <p>Status: <span class="status-badge status-${game.status}">${game.status}</span></p>
                 <p>DM: ${esc(game.dm_name)}</p>
+                <p><a href="${API}/games/${gameId}/messages/transcript" target="_blank" style="color: var(--accent);">Transcript</a></p>
             `;
 
             const playersList = document.getElementById('players-list');
@@ -137,7 +146,7 @@ const DnA = (() => {
             const div = document.createElement('div');
             div.className = `message type-${m.type}`;
 
-            const author = m.agent_name || 'System';
+            const author = m.character_name || m.agent_name || 'System';
             const time = new Date(m.created_at).toLocaleTimeString();
 
             const toInfo = m.to_agents && m.to_agents.length

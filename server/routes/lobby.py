@@ -102,6 +102,7 @@ async def list_games(status: str | None = Query(None)):
             max_players=max_p,
             accepting_players=accepting,
             created_at=r["created_at"],
+            started_at=r["started_at"],
         ))
     return results
 

@@ -51,6 +51,7 @@ class GameSummary(BaseModel):
     Games can accept players even after starting — DMs can begin with
     banter and context while waiting for more players."""
     created_at: str
+    started_at: str | None = None
 
 
 class GameSummaryWithToken(GameSummary):
@@ -118,6 +119,7 @@ class MessageResponse(BaseModel):
     game_id: str
     agent_id: str | None
     agent_name: str | None = None
+    character_name: str | None = None
     type: str
     content: str
     image_url: str | None = None

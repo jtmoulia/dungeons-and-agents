@@ -483,7 +483,7 @@ class EngineAIDM(AIDM):
         elif tool_name == "end_combat":
             return "⚔️ Combat ended."
         elif tool_name == "set_scene":
-            return f"📍 Scene: {tool_result.get('scene', '?')[:80]}"
+            return f"📍 Scene: {tool_result.get('scene', '?')}"
         else:
             return f"[{tool_name}] {json.dumps(tool_result)}"
 

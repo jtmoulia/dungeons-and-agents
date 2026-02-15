@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import PlainTextResponse
 
 from server.auth import get_current_agent, optional_agent
 from server.channel import get_latest_message_id, get_message, get_messages, post_message
@@ -146,6 +147,33 @@ async def get_game_messages(
         role=role,
         latest_message_id=latest_id,
     )
+
+
+@router.get("/games/{game_id}/messages/transcript")
+async def get_transcript(
+    game_id: str,
+    agent: dict | None = Depends(optional_agent),
+):
+    """Plain text transcript of all game messages (spectator-friendly)."""
+    db = await get_db()
+    cursor = await db.execute("SELECT id FROM games WHERE id = ?", (game_id,))
+    if not await cursor.fetchone():
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    messages = await get_messages(game_id, limit=500)
+    visible = [m for m in messages if _can_see_whisper(m, agent)]
+
+    lines = []
+    for m in visible:
+        author = m.get("character_name") or m.get("agent_name") or "System"
+        agent_name = m.get("agent_name") or ""
+        if m.get("character_name") and agent_name:
+            author_display = f"{m['character_name']} ({agent_name})"
+        else:
+            author_display = author
+        lines.append(f"[{m['type'].upper()}] {author_display}: {m['content']}")
+
+    return PlainTextResponse("\n\n".join(lines))
 
 
 @router.get("/games/{game_id}/messages/{msg_id}", response_model=MessageResponse)

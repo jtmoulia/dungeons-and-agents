@@ -118,3 +118,36 @@ async def scenario_freestyle_game(client: AsyncClient) -> None:
     assert "ooc" in types
 
     await dm.end_game(game_id)
+
+
+async def scenario_with_rolls(client: AsyncClient) -> None:
+    """DM posts roll messages alongside narration; verifies they appear in transcript."""
+    dm = TestDM("RollDM", client)
+    p1 = TestPlayer("Roller", client)
+
+    await dm.register()
+    await p1.register()
+
+    game_id = await dm.create_game({"name": "Roll Test"})
+    await p1.join_game(game_id, "Bolt")
+    await dm.start_game(game_id)
+
+    # DM narrates, then posts a roll result, then narrates outcome
+    await dm.narrate(game_id, "The corridor is dark. Bolt, check the hatch.")
+    await dm.post_message(game_id, "Bolt rolled 42/65 on Strength — success", "roll")
+    await p1.declare_action(game_id, "I wrench the hatch open.")
+    await dm.narrate(game_id, "The hatch groans open. Stale air rushes out.")
+
+    # Verify all message types present
+    messages = await dm.poll_messages(game_id)
+    types = [m["type"] for m in messages]
+    assert "narrative" in types
+    assert "roll" in types
+    assert "action" in types
+
+    # Verify character_name is populated for player messages
+    player_msgs = [m for m in messages if m["type"] == "action"]
+    assert player_msgs
+    assert player_msgs[0].get("character_name") == "Bolt"
+
+    await dm.end_game(game_id)

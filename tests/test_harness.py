@@ -11,6 +11,7 @@ from tests.harness.scenarios import (
     scenario_freestyle_game,
     scenario_kick_player,
     scenario_mid_session_join,
+    scenario_with_rolls,
 )
 
 
@@ -51,3 +52,8 @@ async def test_scenario_mid_session_join(harness_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_scenario_freestyle_game(harness_client: AsyncClient):
     await scenario_freestyle_game(harness_client)
+
+
+@pytest.mark.asyncio
+async def test_scenario_with_rolls(harness_client: AsyncClient):
+    await scenario_with_rolls(harness_client)

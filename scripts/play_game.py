@@ -87,40 +87,14 @@ catastrophic hull breach.
 
 - **Tone**: Sci-fi horror. Tense, atmospheric. Think Alien meets blue-collar space workers.
 - **Length**: 1-3 SHORT paragraphs. Punchy, not purple. Leave space for players to react.
-- **Pacing**: End each narration with a clear prompt — a question, a sound, a choice. \
-Tell players what kind of response you want: a quick reaction, a decision, a line of \
-dialogue. This keeps the game snappy and conversational.
+- **Pacing**: End each narration with a clear prompt — a question, a sound, a choice.
 - **NPCs**: Give them distinct voices. Lin speaks in clipped, clinical sentences. \
-Delacroix rambles when scared. ARIA is monotone and procedural. Tran is terse and data-focused.
+Delacroix rambles when scared. ARIA is monotone and procedural.
 - **Player agency**: Present situations. Never dictate what player characters do or feel.
-- **Selective addressing**: Don't address every player every round. Focus on 1-2 characters \
-per narration to keep the pace tight. Rotate focus across rounds.
 
-## Response Format (REQUIRED)
+## Mode
 
-You MUST respond with a JSON object — no other text. The object has two fields:
-- "narration": your narrative text (string)
-- "respond": list of character names who should reply (1-2 names, not everyone)
-
-Example:
-```json
-{{"narration": "The emergency lighting casts red shadows across the corridor. Something scrapes against the hull plating above you. Reyes, your console is flashing a containment warning.", "respond": ["Reyes"]}}
-```
-
-Rules for the "respond" list:
-- ONLY include characters you directly addressed BY NAME or gave something specific to react to.
-- Prefer 1-2 characters per round for tight pacing.
-- You MAY list all players for key moments (new arrivals, major choices, climactic scenes).
-- If your narration only addresses one character, the respond list MUST contain only that character.
-- Players NOT in the respond list will not act this round. Be deliberate about who you include.
-- Rotate focus across rounds so everyone gets spotlight time.
-
-## Rules
-
-- Freestyle — no dice, no stats. Pure collaborative narration.
-- Stay in the fiction. Never reference APIs, game mechanics, or system details.
-- Address players by character name.
-- When a new player joins mid-session, fold them in naturally.
+Freestyle — no dice, no stats. Pure collaborative narration.
 
 ## Campaign Reference
 
@@ -142,61 +116,23 @@ the MSV Koronis, a mining vessel with a catastrophic hull breach.
 - **NPCs**: Give them distinct voices. Lin speaks in clipped, clinical sentences. \
 Delacroix rambles when scared. ARIA is monotone and procedural.
 - **Player agency**: Present situations. Never dictate what player characters do or feel.
-- **Selective addressing**: Focus on 1-2 characters per narration. Rotate across rounds.
 
 ## Game Engine
 
 You have tools to resolve actions mechanically. Use them when appropriate:
 
 - **roll_check**: Call for stat/save checks when a player attempts something risky or \
-uncertain. Not every action needs a roll — routine tasks succeed automatically. Use \
-rolls for danger, pressure, or contested actions.
+uncertain. Not every action needs a roll — routine tasks succeed automatically.
 - **apply_damage / heal**: When creatures attack or players receive medical aid.
-- **add_stress**: Witnessing horror, failed checks, or traumatic events add stress. \
-Small comforts or victories can reduce it.
+- **add_stress**: Witnessing horror, failed checks, or traumatic events add stress.
 - **panic_check**: Call when stress is high and something terrifying happens.
-- **start_combat / combat_action / end_combat**: For structured combat encounters. \
-Use combat for significant confrontations, not every minor scuffle.
+- **start_combat / combat_action / end_combat**: For structured combat encounters.
 - **set_scene**: Update the scene description when the location changes.
-
-### When to roll
-- Player attempts something dangerous or uncertain → roll_check
-- Player is hurt by environment or creature → apply_damage
-- Something horrifying happens → add_stress, then maybe panic_check
-- Major confrontation (Void Stalker) → start_combat
 
 ### Narrating results
 - Weave mechanical results into cinematic narration. Don't just say "you succeeded" — \
 describe what success or failure looks like in the fiction.
 - Critical successes deserve dramatic payoff. Critical failures should be memorable.
-- A failed check doesn't always mean total failure — it can mean success with a cost.
-
-## Response Format (REQUIRED)
-
-After using any tools you need, respond with a JSON object with two fields:
-- "narration": your narrative text incorporating tool results (string)
-- "respond": list of character names who should reply (1-2 names, not everyone)
-
-Example:
-```json
-{{"narration": "Reyes jams the rivet gun into the access panel and fires. The bolt \
-punches clean through the lock mechanism — the door grinds open with a shriek of \
-protesting metal. But the sound carries. Something in the ventilation shaft above \
-you goes quiet. Too quiet.", "respond": ["Reyes"]}}
-```
-
-Rules for the "respond" list:
-- ONLY include characters you directly addressed BY NAME or gave something specific to react to.
-- Prefer 1-2 characters per round for tight pacing.
-- You MAY list all players for key moments (new arrivals, major choices, climactic scenes).
-- Players NOT in the respond list will not act this round. Be deliberate.
-- Rotate focus across rounds so everyone gets spotlight time.
-
-## Rules
-
-- Stay in the fiction. Never reference APIs, tool names, or system internals.
-- Address players by character name.
-- When a new player joins mid-session, fold them in naturally.
 - Use the engine tools to resolve uncertainty — don't invent roll results.
 
 ## Campaign Reference
@@ -223,17 +159,11 @@ You are **{character_name}** aboard the MSV Koronis in a sci-fi horror RPG.
 
 {speech_style}
 
-## Rules
+## Character Voice
 
 - Stay in character as {character_name}. First person.
-- **Keep it SHORT.** 1-4 sentences is ideal. Think dialogue, not narration.
-- Declare actions plainly: "I check the console." "I grab the wrench."
 - Talk like a real person under stress — fragments, interruptions, cursing.
-- React to what JUST happened. Don't narrate ahead or write inner monologue.
 - Have opinions. Disagree with people. Make snap decisions.
-- Never reference game mechanics, APIs, or systems. Stay in the fiction.
-- If the DM's narration doesn't address you or give you anything to react to, \
-respond with exactly `[PASS]` and nothing else. Don't force a response.
 """
 
 
@@ -470,6 +400,30 @@ def main():
     ).raise_for_status()
     print("  Game started!")
 
+    # ── Whisper character stats to players ─────────────────────────────
+    def _format_character_sheet(name: str) -> str | None:
+        """Format a concise character sheet from the engine state."""
+        if not use_engine:
+            return None
+        state = engine.get_state()
+        char = state.characters.get(name)
+        if not char:
+            return None
+        weapons = ", ".join(w.name for w in char.weapons) if char.weapons else "None"
+        armor = char.armor.name if char.armor else "None"
+        inventory = ", ".join(char.inventory) if char.inventory else "None"
+        return (
+            f"=== {name} — {char.char_class.value.title()} ===\n"
+            f"HP: {char.hp}/{char.max_hp} | Stress: {char.stress}\n"
+            f"Combat: {char.stats.combat} | Intellect: {char.stats.intellect} | "
+            f"Strength: {char.stats.strength} | Speed: {char.stats.speed}\n"
+            f"Sanity Save: {char.saves.sanity} | Fear Save: {char.saves.fear} | "
+            f"Body Save: {char.saves.body}\n"
+            f"Weapons: {weapons}\n"
+            f"Armor: {armor} (AP {char.armor.ap if char.armor else 0})\n"
+            f"Inventory: {inventory}"
+        )
+
     # ── Build LLM agents ─────────────────────────────────────────────
     if use_engine:
         dm_system = ENGINE_DM_SYSTEM_PROMPT.format(campaign_json=campaign_json)
@@ -515,6 +469,21 @@ def main():
     active_players: list[AIPlayer] = [reyes, okafor]
     tran: AIPlayer | None = None  # joins later
 
+    # ── Whisper character stats ───────────────────────────────────────
+    if use_engine:
+        print("\n=== Sending character stats ===")
+        player_agent_map = {"Reyes": alice_agent, "Okafor": bob_agent}
+        for char_name, pagent in player_agent_map.items():
+            sheet = _format_character_sheet(char_name)
+            if sheet:
+                dm.whisper(
+                    [pagent["id"]],
+                    f"Welcome {char_name} to the game and share their character sheet "
+                    f"so they know their capabilities. Keep it in character — brief and "
+                    f"practical.\n\nCharacter sheet:\n{sheet}",
+                )
+                print(f"  Sent stats to {char_name}")
+
     # ── Character introductions ───────────────────────────────────────
     INTRO_PROMPT = (
         "Briefly introduce yourself in 1-2 sentences. Describe how you look "
@@ -526,6 +495,19 @@ def main():
         print(f"  [{player.name} introducing...]", flush=True)
         player.take_turn(INTRO_PROMPT)
         print(f"  [{player.name} done]", flush=True)
+
+    # ── Emoji selection ────────────────────────────────────────────────
+    character_emojis: dict[str, str] = {}
+    EMOJI_PROMPT = "Pick ONE emoji that represents your character. Reply with just the emoji, nothing else."
+    print("\n=== Emoji selection ===")
+    for player in active_players:
+        print(f"  [{player.name} picking emoji...]", flush=True)
+        emoji_resp = player.generate(EMOJI_PROMPT)
+        # Extract the first emoji-like character from the response
+        emoji = emoji_resp.strip()[:2]  # emoji can be 1-2 chars (with variation selectors)
+        character_emojis[player.name] = emoji
+        print(f"  {player.name}: {emoji}")
+    print(f"  Emojis: {character_emojis}")
 
     # ── Game loop ─────────────────────────────────────────────────────
     pacing = get_pacing_hints(args.rounds)
@@ -551,9 +533,28 @@ def main():
                 game_id=game_id,
             )
             active_players.append(tran)
+            # Whisper Tran's stats
+            if use_engine:
+                sheet = _format_character_sheet("Tran")
+                if sheet:
+                    dm.whisper(
+                        [carol_agent["id"]],
+                        f"Welcome Tran to the game and share their character sheet "
+                        f"so they know their capabilities. Keep it in character — brief "
+                        f"and practical.\n\nCharacter sheet:\n{sheet}",
+                    )
+                    print(f"  Sent stats to Tran")
+
             print(f"  [Tran introducing...]", flush=True)
             tran.take_turn(INTRO_PROMPT)
             print(f"  [Tran done]", flush=True)
+
+            # Pick emoji for Tran
+            print(f"  [Tran picking emoji...]", flush=True)
+            emoji_resp = tran.generate(EMOJI_PROMPT)
+            emoji = emoji_resp.strip()[:2]
+            character_emojis["Tran"] = emoji
+            print(f"  Tran: {emoji}")
 
         # DM narrates
         hint = pacing[round_num]
@@ -679,6 +680,20 @@ def main():
             color_map[name] = PLAYER_COLORS[len(color_map) % len(PLAYER_COLORS)]
         return color_map[name]
 
+    # Build name → character_name map from messages
+    char_names: dict[str, str] = {}
+    for msg in messages:
+        cn = msg.get("character_name")
+        an = msg.get("agent_name")
+        if cn and an:
+            char_names[an] = cn
+
+    def display_name(agent_name: str) -> str:
+        """Character name with optional emoji prefix."""
+        cn = char_names.get(agent_name, agent_name)
+        emoji = character_emojis.get(cn, "")
+        return f"{emoji} {cn}" if emoji else cn
+
     for msg in messages:
         sender = msg.get("agent_name") or "SYSTEM"
         whisper_tag = f" {MAGENTA}[whisper]{RESET}" if msg.get("to_agents") else ""
@@ -693,13 +708,15 @@ def main():
                 print(f"  {CYAN}|{RESET} {line}")
         elif msg["type"] == "ooc":
             c = player_color(sender)
-            print(f"  {DIM}(OOC) {c}{sender}{RESET}{DIM}: {msg['content']}{RESET}")
+            dn = display_name(sender)
+            print(f"  {DIM}(OOC) {c}{dn}{RESET}{DIM}: {msg['content']}{RESET}")
         elif msg["type"] == "roll":
             YELLOW = "\033[33m"
             print(f"  {DIM}{YELLOW}  {msg['content']}{RESET}")
         elif msg["type"] == "action":
             c = player_color(sender)
-            print(f"\n  {BOLD}{c}{sender}{RESET}{whisper_tag}:")
+            dn = display_name(sender)
+            print(f"\n  {BOLD}{c}{dn}{RESET}{whisper_tag}:")
             print(f"  {c}>{RESET} {msg['content']}")
         else:
             print(f"  [{msg['type'].upper()}] {sender}: {msg['content']}")
