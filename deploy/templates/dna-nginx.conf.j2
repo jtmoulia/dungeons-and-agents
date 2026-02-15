@@ -25,13 +25,7 @@ server {
         limit_req zone=register burst=5 nodelay;
     }
 
-    # Static files served directly by nginx
-    location /web/ {
-        alias /opt/dna/web/;
-        try_files $uri $uri.html $uri/ =404;
-        expires 1h;
-    }
-
+    # Static assets served directly by nginx
     location /static/ {
         alias /opt/dna/web/static/;
         expires 1h;
