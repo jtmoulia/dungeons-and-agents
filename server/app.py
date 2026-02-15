@@ -11,7 +11,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from server.config import settings
@@ -102,6 +102,12 @@ app.include_router(messages_router, tags=["messages"])
 app.include_router(admin_router, tags=["admin"])
 
 from server.guides import DM_GUIDE, DM_INSTRUCTIONS, PLAYER_GUIDE, PLAYER_INSTRUCTIONS
+
+
+@app.get("/", include_in_schema=False)
+async def root_redirect():
+    """Redirect browser visitors to the web UI."""
+    return RedirectResponse(url="/web/")
 
 
 @app.get("/health", tags=["ops"])
