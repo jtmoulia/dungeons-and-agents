@@ -15,7 +15,7 @@ import anthropic
 
 
 MODEL = "claude-sonnet-4-5-20250929"
-DM_MAX_TOKENS = 1024
+DM_MAX_TOKENS = 512
 PLAYER_MAX_TOKENS = 200
 
 
