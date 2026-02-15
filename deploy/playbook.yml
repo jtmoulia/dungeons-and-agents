@@ -17,6 +17,76 @@
     enable_tls: false
 
   tasks:
+    # --- Deploy user ---
+    - name: Create deploy user
+      user:
+        name: deploy
+        groups: sudo
+        shell: /bin/bash
+        create_home: true
+
+    - name: Ensure deploy user .ssh directory exists
+      file:
+        path: /home/deploy/.ssh
+        state: directory
+        owner: deploy
+        group: deploy
+        mode: "0700"
+
+    - name: Copy root authorized_keys to deploy user
+      command: cp /root/.ssh/authorized_keys /home/deploy/.ssh/authorized_keys
+      args:
+        creates: /home/deploy/.ssh/authorized_keys
+
+    - name: Set authorized_keys permissions
+      file:
+        path: /home/deploy/.ssh/authorized_keys
+        owner: deploy
+        group: deploy
+        mode: "0600"
+
+    - name: Allow deploy user passwordless sudo
+      copy:
+        content: "deploy ALL=(ALL) NOPASSWD:ALL\n"
+        dest: /etc/sudoers.d/deploy
+        mode: "0440"
+        validate: "visudo -cf %s"
+
+    - name: Copy GitHub deploy key to deploy user
+      command: cp /root/.ssh/deploy_key /home/deploy/.ssh/deploy_key
+      args:
+        creates: /home/deploy/.ssh/deploy_key
+
+    - name: Set deploy key permissions
+      file:
+        path: /home/deploy/.ssh/deploy_key
+        owner: deploy
+        group: deploy
+        mode: "0600"
+
+    - name: Copy GitHub deploy key (public) to deploy user
+      command: cp /root/.ssh/deploy_key.pub /home/deploy/.ssh/deploy_key.pub
+      args:
+        creates: /home/deploy/.ssh/deploy_key.pub
+
+    - name: Set deploy key public permissions
+      file:
+        path: /home/deploy/.ssh/deploy_key.pub
+        owner: deploy
+        group: deploy
+        mode: "0644"
+
+    - name: Configure SSH for deploy user GitHub access
+      copy:
+        content: |
+          Host github.com
+            IdentityFile /home/deploy/.ssh/deploy_key
+            StrictHostKeyChecking accept-new
+        dest: /home/deploy/.ssh/config
+        owner: deploy
+        group: deploy
+        mode: "0600"
+
     # --- System packages ---
     - name: Update apt cache
       apt:
@@ -33,6 +103,8 @@
           - certbot
           - python3-certbot-nginx
           - ufw
+          - fail2ban
+          - unattended-upgrades
         state: present
 
     # --- uv ---
@@ -47,6 +119,10 @@
       when: uv_check.rc != 0
 
     # --- Application ---
+    - name: Mark app dir as git safe directory
+      command: git config --global --add safe.directory {{ app_dir }}
+      changed_when: false
+
     - name: Clone repository
       git:
         repo: "{{ repo_url }}"
@@ -145,6 +221,44 @@
       command: ufw --force enable
       changed_when: false
 
+    # --- Hardening: SSH ---
+    - name: Install SSH hardening config
+      template:
+        src: templates/sshd_hardening.conf.j2
+        dest: /etc/ssh/sshd_config.d/99-hardening.conf
+        mode: "0644"
+        validate: "sshd -t -f %s"
+      notify: restart sshd
+
+    # --- Hardening: fail2ban ---
+    - name: Configure fail2ban for SSH
+      template:
+        src: templates/fail2ban-sshd.conf.j2
+        dest: /etc/fail2ban/jail.d/sshd.conf
+        mode: "0644"
+      notify: restart fail2ban
+
+    - name: Enable and start fail2ban
+      systemd:
+        name: fail2ban
+        enabled: true
+        state: started
+
+    # --- Hardening: unattended-upgrades ---
+    - name: Configure unattended-upgrades
+      template:
+        src: templates/50unattended-upgrades.j2
+        dest: /etc/apt/apt.conf.d/50unattended-upgrades
+        mode: "0644"
+
+    - name: Enable automatic upgrades
+      copy:
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Unattended-Upgrade "1";
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        mode: "0644"
+
     # --- TLS (optional) ---
     - name: Obtain TLS certificate
       command: certbot --nginx -d {{ server_name }} --non-interactive --agree-tos --email admin@{{ server_name }}
@@ -172,3 +286,13 @@
       service:
         name: nginx
         state: reloaded
+
+    - name: restart sshd
+      service:
+        name: ssh
+        state: restarted
+
+    - name: restart fail2ban
+      service:
+        name: fail2ban
+        state: restarted
