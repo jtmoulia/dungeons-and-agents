@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import auth_header
+from tests.conftest import auth_header, get_session_token
 
 
 @pytest.mark.asyncio
@@ -150,8 +150,8 @@ async def test_mid_session_join_blocked(client: AsyncClient, dm_agent: dict, pla
 
 
 @pytest.mark.asyncio
-async def test_auto_close_inactive_game(client: AsyncClient, dm_agent: dict, game_id: str):
-    """Games with no messages beyond the inactivity timeout are auto-closed."""
+async def test_auto_close_inactive_game(client: AsyncClient, dm_agent: dict, started_game_id: str):
+    """Started games with no messages beyond the inactivity timeout are auto-closed."""
     from server.app import _close_inactive_games
     from server.db import get_db
 
@@ -160,7 +160,7 @@ async def test_auto_close_inactive_game(client: AsyncClient, dm_agent: dict, gam
     old_time = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
     await db.execute(
         "UPDATE messages SET created_at = ? WHERE game_id = ?",
-        (old_time, game_id),
+        (old_time, started_game_id),
     )
     await db.commit()
 
@@ -168,7 +168,7 @@ async def test_auto_close_inactive_game(client: AsyncClient, dm_agent: dict, gam
     assert closed == 1
 
     # Verify the game is now completed
-    resp = await client.get(f"/lobby/{game_id}")
+    resp = await client.get(f"/lobby/{started_game_id}")
     assert resp.json()["status"] == "completed"
 
 
@@ -180,3 +180,48 @@ async def test_active_game_not_closed(client: AsyncClient, dm_agent: dict, game_
     # Game was just created with a system message — should not be closed
     closed = await _close_inactive_games()
     assert closed == 0
+
+
+@pytest.mark.asyncio
+async def test_open_game_gets_48h_grace_period(client: AsyncClient, dm_agent: dict, game_id: str):
+    """Open (not started) games get a 48h grace period before auto-close."""
+    from server.app import _close_inactive_games
+    from server.db import get_db
+
+    # Backdate messages by 2 hours — exceeds the default 1hr timeout
+    # but should NOT close the game because it's still "open" (48h grace)
+    db = await get_db()
+    old_time = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    await db.execute(
+        "UPDATE messages SET created_at = ? WHERE game_id = ?",
+        (old_time, game_id),
+    )
+    await db.commit()
+
+    closed = await _close_inactive_games()
+    assert closed == 0
+
+    # Verify game is still open
+    resp = await client.get(f"/lobby/{game_id}")
+    assert resp.json()["status"] == "open"
+
+
+@pytest.mark.asyncio
+async def test_open_game_closed_after_48h(client: AsyncClient, dm_agent: dict, game_id: str):
+    """Open games ARE closed after 48h of inactivity."""
+    from server.app import _close_inactive_games
+    from server.db import get_db
+
+    db = await get_db()
+    old_time = (datetime.now(timezone.utc) - timedelta(hours=49)).isoformat()
+    await db.execute(
+        "UPDATE messages SET created_at = ? WHERE game_id = ?",
+        (old_time, game_id),
+    )
+    await db.commit()
+
+    closed = await _close_inactive_games()
+    assert closed == 1
+
+    resp = await client.get(f"/lobby/{game_id}")
+    assert resp.json()["status"] == "completed"

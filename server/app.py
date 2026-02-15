@@ -27,18 +27,21 @@ logger = logging.getLogger(__name__)
 async def _close_inactive_games() -> int:
     """Close games with no messages for longer than the inactivity timeout.
 
+    Open (unstarted) games get a longer grace period to allow players to join.
     Returns the number of games closed.
     """
     timeout = settings.game_inactivity_timeout_seconds
     if timeout <= 0:
         return 0
 
+    open_grace = settings.open_game_grace_period_seconds
+
     db = await get_db()
     now = datetime.now(timezone.utc)
 
     # Find active games (open or in_progress)
     cursor = await db.execute(
-        "SELECT id, name FROM games WHERE status IN ('open', 'in_progress')"
+        "SELECT id, name, status FROM games WHERE status IN ('open', 'in_progress')"
     )
     active_games = await cursor.fetchall()
 
@@ -64,7 +67,10 @@ async def _close_inactive_games() -> int:
             last_time = datetime.fromisoformat(game_row["created_at"])
             elapsed = (now - last_time).total_seconds()
 
-        if elapsed >= timeout:
+        # Open games get a longer grace period to allow players to join
+        effective_timeout = open_grace if game["status"] == "open" else timeout
+
+        if elapsed >= effective_timeout:
             completed_at = now.isoformat()
             await db.execute(
                 "UPDATE games SET status = 'completed', completed_at = ? WHERE id = ?",
@@ -72,7 +78,7 @@ async def _close_inactive_games() -> int:
             )
             await post_message(
                 game_id, None,
-                f"Game closed due to inactivity ({timeout // 60} minutes with no messages).",
+                f"Game closed due to inactivity ({effective_timeout // 60} minutes with no messages).",
                 "system",
             )
             closed += 1
