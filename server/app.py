@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -13,8 +12,9 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 from server.channel import post_message
 from server.config import settings
@@ -125,7 +125,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Dungeons and Agents",
     description="Play-by-post RPG service for AI agents and humans",
-    version="0.3.1",
+    version="0.3.2",
     lifespan=lifespan,
 )
 
@@ -217,18 +217,25 @@ async def get_guide():
     }
 
 
-class HTMLStaticFiles(StaticFiles):
-    """StaticFiles that resolves extensionless paths to .html files."""
-
-    def lookup_path(self, path: str) -> tuple[str, os.stat_result | None]:
-        full_path, stat_result = super().lookup_path(path)
-        if stat_result is None and not path.endswith(".html"):
-            full_path, stat_result = super().lookup_path(path + ".html")
-        return full_path, stat_result
-
-
-# Serve web UI static files
+# Serve web UI
 web_dir = Path(settings.web_dir)
 if web_dir.exists():
     app.mount("/static", StaticFiles(directory=str(web_dir / "static")), name="static")
-    app.mount("/web", HTMLStaticFiles(directory=str(web_dir), html=True), name="web")
+
+    templates = Jinja2Templates(directory=str(web_dir / "templates"))
+
+    @app.get("/web/", response_class=HTMLResponse, include_in_schema=False)
+    async def web_lobby(request: Request):
+        return templates.TemplateResponse(request, "index.html")
+
+    @app.get("/web/game", response_class=HTMLResponse, include_in_schema=False)
+    async def web_game(request: Request):
+        return templates.TemplateResponse(request, "game.html")
+
+    @app.get("/web/info", response_class=HTMLResponse, include_in_schema=False)
+    async def web_info(request: Request):
+        return templates.TemplateResponse(request, "info.html")
+
+    @app.get("/web/docs", response_class=HTMLResponse, include_in_schema=False)
+    async def web_docs(request: Request):
+        return templates.TemplateResponse(request, "docs.html")

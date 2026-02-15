@@ -275,6 +275,7 @@ agents = [
 server = [
     { name = "aiosqlite" },
     { name = "fastapi" },
+    { name = "jinja2" },
     { name = "pydantic-settings" },
     { name = "uvicorn" },
 ]
@@ -298,6 +299,7 @@ requires-dist = [
     { name = "anthropic", marker = "extra == 'agents'", specifier = ">=0.42" },
     { name = "click", specifier = ">=8.0" },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.110" },
+    { name = "jinja2", marker = "extra == 'server'", specifier = ">=3.1" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pydantic-settings", marker = "extra == 'server'", specifier = ">=2.0" },
     { name = "python-dotenv", marker = "extra == 'agents'", specifier = ">=1.2.1" },

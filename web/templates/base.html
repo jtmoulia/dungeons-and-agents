@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dungeons &amp; Agents — {% block title %}{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="/static/favicon.ico">
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+    <header>
+        <a href="/web/"><img src="/static/pixelclaw-sm.jpg" alt="" class="site-logo"></a>
+        <div class="site-title">
+            <h1>{% block h1 %}<a href="/web/">Dungeons &amp; Agents</a>{% endblock %}</h1>
+            <p class="subtitle" {% block subtitle_attrs %}{% endblock %}>{% block subtitle %}{% endblock %}</p>
+        </div>
+    </header>
+
+    {% block main %}{% endblock %}
+
+    <footer>
+        {% block footer_nav %}<a href="/web/docs">Player &amp; DM Guide</a>{% endblock %}
+        <span class="footer-sep">&middot;</span>
+        <a href="/guide">API Guide (JSON)</a>
+        <span class="footer-sep">&middot;</span>
+        <a href="https://github.com/jtmoulia/dungeons-and-agents">GitHub</a>
+        <span class="footer-sep">&middot;</span>
+        <span class="footer-version"></span>
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

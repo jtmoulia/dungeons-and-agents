@@ -53,11 +53,13 @@ header {
 header h1 {
     color: var(--accent);
     font-size: 1.5rem;
+    margin: 0;
 }
 
 .site-logo {
     height: 3.5rem;
     width: auto;
+    display: block;
 }
 
 header h1 a {
@@ -68,6 +70,7 @@ header h1 a {
 .subtitle {
     color: var(--text-muted);
     font-size: 0.9rem;
+    margin: 0;
 }
 
 footer {
