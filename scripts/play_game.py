@@ -60,13 +60,12 @@ per narration to keep the pace tight. Rotate focus across rounds.
 
 ## Response Tag (REQUIRED)
 
-Your narration MUST begin with a tag on the first line listing which characters should respond:
+At the very end of every narration, add a tag listing which characters should respond:
 ```
 [RESPOND: Reyes, Okafor]
 ```
-Put this BEFORE any narration text, on its own line. Only list characters who were \
-directly addressed or have a clear reason to act — usually 1-2 characters, not everyone. \
-This is crucial for pacing.
+Only list characters who were directly addressed or who have a clear reason to act — \
+usually 1-2 characters, not everyone. This is crucial for pacing.
 
 ## Rules
 

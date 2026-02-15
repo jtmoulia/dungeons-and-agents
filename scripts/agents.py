@@ -103,6 +103,11 @@ class GameAgent:
             system=self.system_prompt,
             messages=[{"role": "user", "content": user_content}],
         )
+        if response.stop_reason == "max_tokens":
+            raise RuntimeError(
+                f"LLM response for {self.name} was truncated at {max_tokens} tokens. "
+                f"Increase max_tokens or shorten the prompt."
+            )
         return response.content[0].text
 
     def post_message(self, content: str, msg_type: str, to_agents: list[str] | None = None) -> dict:
