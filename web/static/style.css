@@ -138,6 +138,16 @@ footer a:hover {
 
 /* Lobby */
 
+.lobby-stats {
+    margin-bottom: 0.75rem;
+    text-align: center;
+}
+
+.filter-count {
+    opacity: 0.7;
+    font-size: 0.8em;
+}
+
 .filters {
     display: flex;
     gap: 0.5rem;

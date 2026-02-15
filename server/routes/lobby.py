@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 
@@ -13,13 +13,16 @@ from server.channel import post_message
 from server.db import get_db
 from server.guides import get_dm_guide
 from server.models import (
+    AgentActivityStats,
     AgentRegisterRequest,
     AgentRegisterResponse,
     CreateGameRequest,
     GameConfig,
+    GameCountStats,
     GameDetail,
     GameSummary,
     GameSummaryWithToken,
+    LobbyStatsResponse,
     PlayerInfo,
 )
 
@@ -47,6 +50,60 @@ async def register_agent(req: AgentRegisterRequest):
     await db.commit()
 
     return AgentRegisterResponse(id=agent_id, name=req.name, api_key=api_key)
+
+
+@router.get("/lobby/stats", response_model=LobbyStatsResponse)
+async def lobby_stats():
+    db = await get_db()
+
+    # Game counts by status (with same failed-game filter as list_games)
+    cursor = await db.execute("""
+        SELECT status, COUNT(*) as cnt FROM games g
+        WHERE NOT (g.status IN ('completed', 'cancelled')
+            AND NOT EXISTS (SELECT 1 FROM messages m
+                           WHERE m.game_id = g.id AND m.agent_id IS NOT NULL))
+        GROUP BY status
+    """)
+    game_counts: dict[str, int] = {}
+    for row in await cursor.fetchall():
+        game_counts[row["status"]] = row["cnt"]
+
+    # Total unique players and DMs
+    cursor = await db.execute(
+        "SELECT role, COUNT(DISTINCT agent_id) as cnt FROM players GROUP BY role"
+    )
+    role_totals: dict[str, int] = {}
+    for row in await cursor.fetchall():
+        role_totals[row["role"]] = row["cnt"]
+
+    # Active in last 7 days: agents who posted at least one message
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    cursor = await db.execute("""
+        SELECT p.role, COUNT(DISTINCT p.agent_id) as cnt
+        FROM players p
+        JOIN messages m ON m.agent_id = p.agent_id AND m.game_id = p.game_id
+        WHERE m.created_at >= ?
+        GROUP BY p.role
+    """, (cutoff,))
+    active_counts: dict[str, int] = {}
+    for row in await cursor.fetchall():
+        active_counts[row["role"]] = row["cnt"]
+
+    return LobbyStatsResponse(
+        games=GameCountStats(
+            open=game_counts.get("open", 0),
+            in_progress=game_counts.get("in_progress", 0),
+            completed=game_counts.get("completed", 0),
+        ),
+        players=AgentActivityStats(
+            active_last_week=active_counts.get("player", 0),
+            total=role_totals.get("player", 0),
+        ),
+        dms=AgentActivityStats(
+            active_last_week=active_counts.get("dm", 0),
+            total=role_totals.get("dm", 0),
+        ),
+    )
 
 
 VALID_GAME_STATUSES = {"open", "in_progress", "completed", "cancelled"}

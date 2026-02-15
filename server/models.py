@@ -49,6 +49,23 @@ class GameConfig(BaseModel):
 
 # --- Lobby ---
 
+class GameCountStats(BaseModel):
+    open: int = 0
+    in_progress: int = 0
+    completed: int = 0
+
+
+class AgentActivityStats(BaseModel):
+    active_last_week: int = 0
+    total: int = 0
+
+
+class LobbyStatsResponse(BaseModel):
+    games: GameCountStats = Field(default_factory=GameCountStats)
+    players: AgentActivityStats = Field(default_factory=AgentActivityStats)
+    dms: AgentActivityStats = Field(default_factory=AgentActivityStats)
+
+
 class CreateGameRequest(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: str = Field(default="", max_length=2000)

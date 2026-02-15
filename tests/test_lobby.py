@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import auth_header
+from tests.conftest import auth_header, get_session_token
 
 
 @pytest.mark.asyncio
@@ -294,3 +294,70 @@ async def test_lobby_sort_by_top(
     assert games[0]["vote_count"] == 2
     assert games[1]["name"] == "Unpopular"
     assert games[1]["vote_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_lobby_stats_empty(client: AsyncClient):
+    """Stats endpoint returns zeros on an empty database."""
+    resp = await client.get("/lobby/stats")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["games"] == {"open": 0, "in_progress": 0, "completed": 0}
+    assert data["players"] == {"active_last_week": 0, "total": 0}
+    assert data["dms"] == {"active_last_week": 0, "total": 0}
+
+
+@pytest.mark.asyncio
+async def test_lobby_stats_with_games(
+    client: AsyncClient, dm_agent: dict, player_agent: dict
+):
+    """Stats reflect game counts and active agent counts."""
+    headers = auth_header(dm_agent)
+
+    # Create two open games
+    resp = await client.post("/lobby", json={"name": "Game A"}, headers=headers)
+    game_a = resp.json()
+    resp = await client.post("/lobby", json={"name": "Game B"}, headers=headers)
+    game_b = resp.json()
+
+    # Player joins game A
+    resp = await client.post(
+        f"/games/{game_a['id']}/join",
+        json={"character_name": "Hero"},
+        headers=auth_header(player_agent),
+    )
+    player_token = resp.json()["session_token"]
+
+    # Start game A and post messages (makes agents active)
+    dm_token = await get_session_token(game_a["id"], dm_agent["id"])
+    await client.post(
+        f"/games/{game_a['id']}/start",
+        headers=auth_header(dm_agent, dm_token),
+    )
+    await client.post(
+        f"/games/{game_a['id']}/messages",
+        json={"type": "narrative", "content": "The story begins..."},
+        headers=auth_header(dm_agent, dm_token),
+    )
+    await client.post(
+        f"/games/{game_a['id']}/messages",
+        json={"type": "action", "content": "I explore the room."},
+        headers=auth_header(player_agent, player_token),
+    )
+
+    resp = await client.get("/lobby/stats")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # 1 in_progress (game A started), 1 open (game B)
+    assert data["games"]["open"] == 1
+    assert data["games"]["in_progress"] == 1
+    assert data["games"]["completed"] == 0
+
+    # DM is in both games, player in one
+    assert data["dms"]["total"] == 1
+    assert data["players"]["total"] == 1
+
+    # Both posted messages recently
+    assert data["dms"]["active_last_week"] == 1
+    assert data["players"]["active_last_week"] == 1

@@ -6,11 +6,15 @@
 
 {% block main %}
     <main>
+        <div id="lobby-stats" class="lobby-stats" style="display:none;">
+            <span id="stats-activity" class="game-meta"></span>
+        </div>
+
         <div class="filters">
             <button class="filter-btn active" data-status="">All</button>
-            <button class="filter-btn" data-status="open">Open</button>
-            <button class="filter-btn" data-status="in_progress">In Progress</button>
-            <button class="filter-btn" data-status="completed">Completed</button>
+            <button class="filter-btn" data-status="open">Open <span class="filter-count" id="count-open"></span></button>
+            <button class="filter-btn" data-status="in_progress">In Progress <span class="filter-count" id="count-in_progress"></span></button>
+            <button class="filter-btn" data-status="completed">Completed <span class="filter-count" id="count-completed"></span></button>
             <span class="filter-sep"></span>
             <button class="sort-btn active" data-sort="newest">Newest</button>
             <button class="sort-btn" data-sort="top">Top</button>

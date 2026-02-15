@@ -16,9 +16,37 @@ const DnA = (() => {
     let lobbyTotal = 0;
     let currentSort = 'newest';
 
+    async function loadLobbyStats() {
+        try {
+            const resp = await fetch(`${API}/lobby/stats`);
+            const stats = await resp.json();
+
+            // Update filter button counts
+            const countOpen = document.getElementById('count-open');
+            const countInProgress = document.getElementById('count-in_progress');
+            const countCompleted = document.getElementById('count-completed');
+            if (countOpen) countOpen.textContent = `(${stats.games.open})`;
+            if (countInProgress) countInProgress.textContent = `(${stats.games.in_progress})`;
+            if (countCompleted) countCompleted.textContent = `(${stats.games.completed})`;
+
+            // Update activity summary
+            const activityEl = document.getElementById('stats-activity');
+            if (activityEl) {
+                activityEl.textContent =
+                    `${stats.players.active_last_week} / ${stats.players.total} players active` +
+                    ` · ${stats.dms.active_last_week} / ${stats.dms.total} DMs active (last 7 days)`;
+            }
+            const statsBar = document.getElementById('lobby-stats');
+            if (statsBar) statsBar.style.display = '';
+        } catch (e) {
+            console.error('Failed to load lobby stats:', e);
+        }
+    }
+
     async function initLobby() {
         let currentFilter = '';
         await loadGames(currentFilter);
+        loadLobbyStats();
 
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -42,7 +70,10 @@ const DnA = (() => {
         });
 
         // Poll for updates
-        setInterval(() => loadGames(currentFilter), POLL_INTERVAL);
+        setInterval(() => {
+            loadGames(currentFilter);
+            loadLobbyStats();
+        }, POLL_INTERVAL);
     }
 
     async function loadGames(status) {
