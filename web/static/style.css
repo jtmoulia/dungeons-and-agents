@@ -38,12 +38,26 @@ main {
 header {
     background: var(--bg-surface);
     border-bottom: 2px solid var(--accent);
-    padding: 1rem 2rem;
+    padding: 0.75rem 2rem;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.site-title {
+    display: flex;
+    flex-direction: column;
 }
 
 header h1 {
     color: var(--accent);
     font-size: 1.5rem;
+}
+
+.site-logo {
+    height: 3.5rem;
+    width: auto;
 }
 
 header h1 a {
@@ -130,6 +144,7 @@ footer a:hover {
     background: var(--border);
     align-self: stretch;
     margin: 0 0.25rem;
+    margin-left: auto;
 }
 
 .games-list {
@@ -314,6 +329,12 @@ footer a:hover {
     max-width: 100%;
     max-height: 400px;
     border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+.msg-content img {
+    max-width: 100%;
+    max-height: 400px;
     border-radius: 4px;
 }
 

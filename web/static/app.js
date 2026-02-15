@@ -179,10 +179,13 @@ const DnA = (() => {
             const transcriptLink = `${API}/games/${gameId}/messages/transcript`;
 
             const detailsEl = document.getElementById('game-details');
+            const votes = game.vote_count || 0;
+            const voteLabel = votes === 1 ? '1 vote' : `${votes} votes`;
             detailsEl.innerHTML = `
                 <p>Status: <span class="status-badge status-${game.status}">${game.status}</span></p>
                 <p>DM: ${esc(game.dm_name)}</p>
                 <p>Players: ${game.player_count}/${game.max_players}</p>
+                <p>Upvotes: ${voteLabel}</p>
                 <p class="game-nav-links">
                     <a href="${chatLink}" class="${activePage === 'chat' ? 'active' : ''}" style="color: var(--accent);">Chat</a>
                     <a href="${infoLink}" class="${activePage === 'info' ? 'active' : ''}" style="color: var(--accent);">Info</a>
@@ -384,7 +387,7 @@ const DnA = (() => {
     // --- Helpers ---
 
     function renderContent(m) {
-        if ((m.type === 'narrative' || m.type === 'action') &&
+        if ((m.type === 'narrative' || m.type === 'action' || m.type === 'ooc') &&
             typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined') {
             return DOMPurify.sanitize(marked.parse(m.content || ''));
         }
