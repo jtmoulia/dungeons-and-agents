@@ -1,0 +1,451 @@
+#!/usr/bin/env python3
+"""Play a full Hull Breach campaign arc via the HTTP API with LLM-driven agents.
+
+Each participant (DM + players) is backed by a Claude LLM call that generates
+all dialogue and narration dynamically based on the evolving game transcript.
+
+Usage:
+    # Start the server first:
+    uv run uvicorn server.app:app --port 8111
+
+    # Run the autonomous game (requires ANTHROPIC_API_KEY env var):
+    uv run python scripts/play_game.py --base-url http://localhost:8111
+
+    # Fewer rounds for a quick test:
+    uv run python scripts/play_game.py --base-url http://localhost:8111 --rounds 4
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import uuid
+from pathlib import Path
+
+import anthropic
+import httpx
+
+from agents import GameAgent, AIPlayer, AIDM
+
+
+# ---------------------------------------------------------------------------
+# Campaign data
+# ---------------------------------------------------------------------------
+
+CAMPAIGN_PATH = Path(__file__).resolve().parent.parent / "campaigns" / "hull-breach.json"
+
+
+# ---------------------------------------------------------------------------
+# System prompts
+# ---------------------------------------------------------------------------
+
+DM_SYSTEM_PROMPT = """\
+You are the **Warden** (Dungeon Master) for a sci-fi horror RPG called \
+"Dungeons and Agents." You run a play-by-post game set aboard the MSV Koronis, \
+a deep-space mining vessel that has suffered a catastrophic hull breach.
+
+## Your Responsibilities
+
+1. **Narrate scenes** — Set the tone, describe environments, introduce NPCs and threats.
+2. **Manage pacing** — Follow the orchestrator's pacing hints for each round.
+3. **React to players** — Build on player actions, incorporate their choices into the narrative.
+4. **Run NPCs** — Voice Lin, Delacroix, Tran (until a player takes her), ARIA, and others.
+
+## Style Guidelines
+
+- **Tone**: Sci-fi horror. Tense, atmospheric, claustrophobic. Think Alien, Event Horizon.
+- **Pacing**: Alternate between tense exploration and sudden danger.
+- **Length**: Keep narration to 2-4 paragraphs per post. Be vivid but concise.
+- **Player agency**: Present situations and let players decide. Don't dictate player actions.
+- **NPCs**: Give NPCs distinct voices. Lin is clinical and guarded. Delacroix is scared. \
+ARIA is flat and procedural.
+
+## Important Rules
+
+- This is a **freestyle** game — no dice rolls or mechanical stats. Resolve everything \
+through narration.
+- Never break character or reference game mechanics, APIs, or system details.
+- Address players by their character names.
+- When a new player joins mid-session, incorporate them naturally into the scene.
+
+## Campaign Data
+
+The following JSON contains the full campaign module with locations, entities, \
+missions, factions, and assets. Use it as your reference for the world:
+
+```json
+{campaign_json}
+```
+"""
+
+
+def player_system_prompt(character_name: str, role: str, personality: str) -> str:
+    return f"""\
+You are **{character_name}**, a crew member aboard the deep-space mining vessel \
+MSV Koronis. You are playing a character in a sci-fi horror RPG called \
+"Dungeons and Agents."
+
+## Your Role on the Ship
+
+{role}
+
+## Your Personality
+
+{personality}
+
+## How to Play
+
+- Respond **in character** as {character_name}. Use first person.
+- **Declare actions clearly**: "I check the console," "I grab the fire extinguisher," etc.
+- React emotionally to horror — fear, stress, determination. You're human (or trying to be).
+- Have opinions about what the group should do. Sometimes disagree with others.
+- You want to survive. Act accordingly.
+- Keep responses to 1-3 paragraphs. Be vivid but concise.
+- Never break character or reference game mechanics, APIs, or system details.
+- Build on what the DM and other players have established. Don't contradict the narrative.
+"""
+
+
+# ---------------------------------------------------------------------------
+# Character definitions
+# ---------------------------------------------------------------------------
+
+CHARACTERS = {
+    "Reyes": {
+        "role": "Chief Engineer. You keep the Kugelblitz drive — a contained micro black "
+                "hole — from collapsing the ship into a singularity. You know every pipe, "
+                "wire, and weld on this vessel. The engine room is your domain.",
+        "personality": "Competent, direct, and sharp-tongued. You don't suffer fools. Under "
+                       "the gruff exterior you care deeply about the crew — they're your "
+                       "responsibility as much as the drive. You trust machines more than "
+                       "people, and you trust corporate least of all.",
+    },
+    "Okafor": {
+        "role": "Ship's Cook and unofficial counselor. Built like a cargo loader, calm under "
+                "pressure. You feed the crew and keep morale together. You carry a cleaver "
+                "you claim is for meal prep.",
+        "personality": "Warm, steady, and perceptive. You notice things others miss — body "
+                       "language, tensions, lies. You don't trust Stellaris Corp one bit. "
+                       "When things get dangerous, a quiet intensity replaces your usual warmth. "
+                       "You're more capable in a fight than anyone expects.",
+    },
+    "Tran": {
+        "role": "Navigation Officer. You were at the helm when the breach hit. You saw "
+                "something on the proximity sensors — not a rock. You're holding the bridge "
+                "together alone until help arrives.",
+        "personality": "Precise, competent, and increasingly stressed. You process fear by "
+                       "focusing on data and procedures. You feel the weight of responsibility "
+                       "with the captain missing. You're determined to get the crew home, and "
+                       "you'll fight the ship itself to do it.",
+    },
+}
+
+
+# ---------------------------------------------------------------------------
+# Pacing hints for the DM
+# ---------------------------------------------------------------------------
+
+def get_pacing_hints(total_rounds: int) -> list[str]:
+    """Generate pacing hints scaled to the total number of rounds."""
+    if total_rounds <= 4:
+        return [
+            "Set the scene: the hull breach alarm, the emergency. Introduce the immediate "
+            "danger — the ship is damaged, something is aboard. Address each player character "
+            "by name and give them a situation to react to.",
+
+            "Escalate: reveal more about the creatures, introduce NPC Science Officer Lin "
+            "who knows too much. Build tension with sounds, failing systems, and dread.",
+
+            "Climax: the crew reaches the cargo bay and confronts the queen. Present the "
+            "choice — give her the sample, destroy it, or fight. Let the players decide.",
+
+            "Resolution and epilogue. Narrate the outcome of the players' choice. The queen "
+            "leaves or attacks. Wrap up the story — rescue is coming, the truth about "
+            "Stellaris is out. End on a atmospheric note.",
+        ]
+
+    hints = []
+    # Scale phases across available rounds
+    phase_size = max(1, total_rounds // 5)
+
+    for i in range(total_rounds):
+        phase = i // phase_size if phase_size > 0 else 0
+
+        if phase == 0:
+            hints.append(
+                "Introduce the emergency. The klaxon, the hull breach, the ship in crisis. "
+                "Address each player by their character name and give them a starting "
+                "situation to react to. Establish the setting aboard the MSV Koronis."
+            )
+        elif phase == 1:
+            hints.append(
+                "Escalate tension. Reveal more about the creatures — sounds in the vents, "
+                "claw marks, a dead crew member. Introduce NPC Science Officer Lin, who is "
+                "performing an autopsy and seems to know too much about these things. "
+                "Introduce NPC Delacroix who guards a mysterious crate in the cargo bay."
+            )
+        elif phase == 2:
+            hints.append(
+                "Mid-game development. The crew discovers the corporate conspiracy — "
+                "Stellaris Corp knew about the creatures, the KX-7 sample is a pheromone "
+                "beacon. Lin is a corporate handler. The captain is missing. Build toward "
+                "the cargo bay confrontation."
+            )
+        elif phase == 3:
+            hints.append(
+                "Climax. The crew reaches the cargo bay and faces the Void Stalker Queen "
+                "anchored to the breach. Present the three-way choice: give her the sample "
+                "(she leaves peacefully), destroy it (she rages), or fight her. Let the "
+                "players decide."
+            )
+        else:
+            hints.append(
+                "Resolution and epilogue. Narrate the outcome of the players' choice. "
+                "Wrap up loose threads — Lin's testimony, the distress signal, the crew's "
+                "survival. End on an atmospheric, contemplative note. The stars are beautiful "
+                "if you don't think about what lives between them."
+            )
+
+    return hints[:total_rounds]
+
+
+# ---------------------------------------------------------------------------
+# Main orchestrator
+# ---------------------------------------------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(description="Play a full Hull Breach arc with LLM agents")
+    parser.add_argument("--base-url", default="http://localhost:8000")
+    parser.add_argument("--rounds", type=int, default=8, help="Number of game rounds (default: 8)")
+    args = parser.parse_args()
+
+    base = args.base_url.rstrip("/")
+    http = httpx.Client(base_url=base, timeout=120)
+    llm = anthropic.Anthropic()  # uses ANTHROPIC_API_KEY env var
+
+    suffix = uuid.uuid4().hex[:6]
+
+    # Load campaign data
+    campaign_json = CAMPAIGN_PATH.read_text()
+    campaign = json.loads(campaign_json)
+
+    # ── Registration ──────────────────────────────────────────────────
+    print("=== Registering agents ===")
+
+    def register(name: str) -> dict:
+        resp = http.post("/agents/register", json={"name": f"{name}-{suffix}"})
+        resp.raise_for_status()
+        data = resp.json()
+        data["display_name"] = name
+        return data
+
+    dm_agent = register("Warden")
+    alice_agent = register("Alice")
+    bob_agent = register("Bob")
+    carol_agent = register("Carol")
+    print(f"  DM: {dm_agent['display_name']}")
+    print(f"  Players: Alice (Reyes), Bob (Okafor), Carol (Tran — joins mid-session)")
+
+    # ── Create game ───────────────────────────────────────────────────
+    print("\n=== Creating game ===")
+    game_resp = http.post(
+        "/lobby",
+        json={
+            "name": "Hull Breach",
+            "description": campaign["description"],
+            "config": {"max_players": 5, "allow_mid_session_join": True},
+        },
+        headers={"Authorization": f"Bearer {dm_agent['api_key']}"},
+    ).json()
+    game_id = game_resp["id"]
+    dm_tok = game_resp["session_token"]
+    print(f"  Game: {game_resp['name']} ({game_id[:8]}...)")
+
+    # ── Players join ──────────────────────────────────────────────────
+    print("\n=== Players joining ===")
+
+    def join(agent: dict, character_name: str) -> str:
+        resp = http.post(
+            f"/games/{game_id}/join",
+            json={"character_name": character_name},
+            headers={"Authorization": f"Bearer {agent['api_key']}"},
+        )
+        resp.raise_for_status()
+        tok = resp.json()["session_token"]
+        print(f"  {agent['display_name']} joined as {character_name}")
+        return tok
+
+    alice_tok = join(alice_agent, "Reyes")
+    bob_tok = join(bob_agent, "Okafor")
+
+    # Carol joins mid-session (after round 3)
+
+    # ── Start game ────────────────────────────────────────────────────
+    print("\n=== Starting game ===")
+    http.post(
+        f"/games/{game_id}/start",
+        headers={
+            "Authorization": f"Bearer {dm_agent['api_key']}",
+            "X-Session-Token": dm_tok,
+        },
+    ).raise_for_status()
+    print("  Game started!")
+
+    # ── Build LLM agents ─────────────────────────────────────────────
+    dm_system = DM_SYSTEM_PROMPT.format(campaign_json=campaign_json)
+
+    dm = AIDM(
+        name="Warden",
+        system_prompt=dm_system,
+        llm=llm, http=http,
+        api_key=dm_agent["api_key"],
+        session_token=dm_tok,
+        game_id=game_id,
+    )
+
+    reyes = AIPlayer(
+        name="Reyes",
+        system_prompt=player_system_prompt("Reyes", **CHARACTERS["Reyes"]),
+        llm=llm, http=http,
+        api_key=alice_agent["api_key"],
+        session_token=alice_tok,
+        game_id=game_id,
+    )
+
+    okafor = AIPlayer(
+        name="Okafor",
+        system_prompt=player_system_prompt("Okafor", **CHARACTERS["Okafor"]),
+        llm=llm, http=http,
+        api_key=bob_agent["api_key"],
+        session_token=bob_tok,
+        game_id=game_id,
+    )
+
+    active_players: list[AIPlayer] = [reyes, okafor]
+    tran: AIPlayer | None = None  # joins later
+
+    # ── Game loop ─────────────────────────────────────────────────────
+    pacing = get_pacing_hints(args.rounds)
+    carol_join_round = min(3, args.rounds - 2)  # join after round 3 (or earlier for short games)
+
+    for round_num in range(args.rounds):
+        round_label = round_num + 1
+        print(f"\n{'─' * 60}")
+        print(f"  ROUND {round_label}/{args.rounds}")
+        print(f"{'─' * 60}")
+
+        # Mid-session join
+        if round_num == carol_join_round and tran is None:
+            print("\n  >>> Carol joins mid-session as Tran <<<")
+            carol_tok = join(carol_agent, "Tran")
+            tran = AIPlayer(
+                name="Tran",
+                system_prompt=player_system_prompt("Tran", **CHARACTERS["Tran"]),
+                llm=llm, http=http,
+                api_key=carol_agent["api_key"],
+                session_token=carol_tok,
+                game_id=game_id,
+            )
+            active_players.append(tran)
+
+        # DM narrates
+        hint = pacing[round_num]
+        print(f"\n  [Warden narrating...]")
+        dm.narrate(hint)
+        print(f"  [Warden done]")
+
+        # Each player responds
+        for player in active_players:
+            print(f"  [{player.name} acting...]")
+            player.take_turn(
+                f"The Warden just narrated. It's your turn to respond in character as "
+                f"{player.name}. Declare what you do or say."
+            )
+            print(f"  [{player.name} done]")
+
+        # Occasional DM whisper (rounds 2 and 5)
+        if round_num == 1 and len(active_players) >= 1:
+            print(f"  [Warden whispering to {active_players[0].name}...]")
+            dm.whisper(
+                [alice_agent["id"]],
+                f"Generate a private whisper to {active_players[0].name} only. "
+                f"Reveal something unsettling that only they notice — a detail, "
+                f"a sound, something glimpsed. Keep it to 1-2 sentences.",
+            )
+            print(f"  [whisper sent]")
+        elif round_num == 4 and len(active_players) >= 2:
+            print(f"  [Warden whispering to {active_players[1].name}...]")
+            dm.whisper(
+                [bob_agent["id"]],
+                f"Generate a private whisper to {active_players[1].name} only. "
+                f"They notice something suspicious about Science Officer Lin — "
+                f"a corporate implant, a hidden device, a telling reaction. "
+                f"Keep it to 1-2 sentences.",
+            )
+            print(f"  [whisper sent]")
+
+    # ── End game ──────────────────────────────────────────────────────
+    print(f"\n{'─' * 60}")
+    print("  EPILOGUE")
+    print(f"{'─' * 60}")
+
+    print("\n  [Warden narrating epilogue...]")
+    dm.narrate(
+        "Write the final epilogue. The crisis is resolved (however the players chose "
+        "to handle it). Describe the aftermath: the crew waiting for rescue, the "
+        "truth about Stellaris transmitted into the void, the quiet after the storm. "
+        "End on a contemplative, atmospheric note. This is the last message of the game."
+    )
+    print("  [Warden done]")
+
+    print("\n=== Ending game ===")
+    http.post(
+        f"/games/{game_id}/end",
+        headers={
+            "Authorization": f"Bearer {dm_agent['api_key']}",
+            "X-Session-Token": dm_tok,
+        },
+    ).raise_for_status()
+    print("  Game ended!")
+
+    # ── Print transcript ──────────────────────────────────────────────
+    print(f"\n{'=' * 70}")
+    print("  HULL BREACH — Full Transcript")
+    print(f"{'=' * 70}")
+
+    messages = http.get(
+        f"/games/{game_id}/messages?limit=500",
+        headers={
+            "Authorization": f"Bearer {dm_agent['api_key']}",
+            "X-Session-Token": dm_tok,
+        },
+    ).json()
+
+    for msg in messages:
+        sender = msg.get("agent_name") or "SYSTEM"
+        whisper_tag = " [whisper]" if msg.get("to_agents") else ""
+
+        if msg["type"] == "system":
+            print(f"\n  {'─' * 50}")
+            print(f"  {msg['content']}")
+            print(f"  {'─' * 50}")
+        elif msg["type"] == "narrative":
+            print(f"\n  WARDEN{whisper_tag}:")
+            for line in msg["content"].split("\n"):
+                print(f"  | {line}")
+        elif msg["type"] == "ooc":
+            print(f"  (OOC) {sender}: {msg['content']}")
+        elif msg["type"] == "action":
+            print(f"\n  {sender}:")
+            print(f"  > {msg['content']}")
+        else:
+            print(f"  [{msg['type'].upper()}] {sender}: {msg['content']}")
+
+    print(f"\n{'=' * 70}")
+    print(f"  Game ID: {game_id}")
+    print(f"  View in browser: {base}/game.html?id={game_id}")
+    print(f"{'=' * 70}")
+
+
+if __name__ == "__main__":
+    main()
