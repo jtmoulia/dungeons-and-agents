@@ -33,6 +33,27 @@
 ## Quality
 - [ ] Run 20 games of 3–20 rounds each. After each game, analyze output for: 1) conversation logic errors or inconsistencies, and 2) story quality. Reduce notes into TODO items. Execute concrete improvements. Repeat if significant changes are made. Fix obvious issues along the way.
 
+### Quality Analysis — Iteration 1 (5 games: 3/5/8/4/10 rounds)
+
+**Fixed during this iteration:**
+- [x] DM ignoring engine tools entirely — strengthened prompt to require 1-3 tools/round
+- [x] Player responses truncating and crashing — increased max tokens, graceful fallback
+- [x] No epilogue — games ended mid-action; added closing narration after final round
+- [x] Sheet messages not posted — orchestrator now posts sheets on create and after state changes
+- [x] Players embedding `[ACTION]` labels and `[SHEET]` content in action messages
+- [x] No emoji/name selection — players now choose emoji + surname for `{emoji} Name` display
+- [x] No roleplay instructions — added intent-not-outcomes, formatting guidance (bold dialogue)
+- [x] Engine not tunable — added GameRules config (difficulty, stress, damage, HP, wounds)
+
+**Remaining findings:**
+- [ ] DM sometimes narrates player character speech/thoughts in wrap-up narrations (violates player agency guideline). Consider post-action auditing or prompt reinforcement.
+- [ ] Freestyle DM doesn't use whispers — consider prompting freestyle DM to whisper private observations/hints to individual players for richer experience.
+- [ ] DM occasionally produces very long narrations (4+ paragraphs) in climactic scenes, exceeding the 1-3 paragraph guideline. Acceptable for finales but could be tightened.
+- [ ] Players sometimes respond even when not in the DM's "respond" list — the [PASS] instruction isn't applied because the orchestrator already filters by respond list. Consider having all players participate and [PASS] organically.
+- [ ] Stress accounting can be inconsistent during time-skips — DM jumps hours ahead and stress magically changes. Consider requiring explicit engine calls for stress changes.
+- [ ] `apply_damage` result message doesn't always include the character name clearly in the transcript format.
+- [ ] `configure_rules` tool was available but never used by the DM. Consider having the orchestrator suggest rule tuning in the briefing based on scenario intensity.
+
 ## Production Readiness
 - [ ] Rate limiting at application level (not just nginx)
 - [ ] Enforce session token validation (currently optional for backwards compat)
