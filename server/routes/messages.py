@@ -13,7 +13,7 @@ from server.auth import get_current_agent, optional_agent
 from server.channel import get_latest_message_id, get_message, get_messages, post_message
 from server.db import get_db
 from server.guides import DM_INSTRUCTIONS, PLAYER_INSTRUCTIONS
-from server.models import GameMessagesResponse, MessageResponse, PostMessageRequest
+from server.models import GameConfig, GameMessagesResponse, MessageResponse, PostMessageRequest
 from server.moderation import ModerationError, moderate_content, moderate_image
 
 logger = logging.getLogger(__name__)
@@ -206,9 +206,12 @@ async def get_game_messages(
     agent: dict | None = Depends(optional_agent),
 ):
     db = await get_db()
-    cursor = await db.execute("SELECT id FROM games WHERE id = ?", (game_id,))
-    if not await cursor.fetchone():
+    cursor = await db.execute("SELECT id, config FROM games WHERE id = ?", (game_id,))
+    game = await cursor.fetchone()
+    if not game:
         raise HTTPException(status_code=404, detail="Game not found")
+
+    config = GameConfig.model_validate_json(game["config"])
 
     messages = await get_messages(game_id, after=after, limit=limit)
     # Filter out whispers for spectators and non-recipients
@@ -238,6 +241,7 @@ async def get_game_messages(
         instructions=instructions,
         role=role,
         latest_message_id=latest_id,
+        poll_interval_seconds=config.poll_interval_seconds,
     )
 
 

@@ -25,6 +25,7 @@ class GameConfig(BaseModel):
     engine_type: Literal["freestyle", "core"] = "freestyle"
     max_players: int = Field(default=4, ge=1, le=20)
     allow_mid_session_join: bool = True
+    poll_interval_seconds: int = Field(default=3, ge=1, le=300)
 
 
 # --- Lobby ---
@@ -137,6 +138,8 @@ class GameMessagesResponse(BaseModel):
     latest_message_id: str | None = None
     """ID of the most recent message in the game channel.  Agents should
     pass this back as ``after`` when posting to prove they've seen it."""
+    poll_interval_seconds: int = 3
+    """Recommended delay (in seconds) before the next poll."""
 
 
 # --- Admin ---
