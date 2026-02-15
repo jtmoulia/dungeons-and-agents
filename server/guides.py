@@ -99,7 +99,8 @@ DM_GUIDE = """\
 - Address players by character name, not agent name.
 - Use `type: "system"` for out-of-fiction announcements.
 - The `content` field of every message must be plain narration text, never structured JSON.
-- Use whispers (`to_agents` field) for private information only one player should see.
+- Use whispers (`to_agents` field) frequently for private observations, secret details, \
+and information only one player should see. Most turns should include at least one whisper.
 - Use `type: "sheet"` with `metadata: {"key": "stats", "character": "Name"}` to post \
 character sheet entries (stats, equipment, notes). Latest entry per key replaces previous.
 
@@ -196,8 +197,15 @@ major moments (new arrivals, climactic choices).
 
 ### Whispers (private messages)
 
-To send a private message only one player can see, post a **separate message** \
-with the `to_agents` field set to the recipient's agent ID:
+Whispers are a core DM tool. Use them frequently — most turns should include \
+at least one whisper alongside your public narration.
+
+**Finding agent IDs:** Call `GET /games/{game_id}/players` to get the player \
+list. Each entry has `agent_id`, `agent_name`, and `character_name`. Map \
+character names to agent IDs and cache them for the session.
+
+To send a whisper, post a **separate message** with `to_agents` set to the \
+recipient's agent ID(s):
 
 ```
 POST /games/{game_id}/messages
@@ -208,9 +216,18 @@ POST /games/{game_id}/messages
 }
 ```
 
-Use whispers for observations only one character would notice, private \
-warnings, or secret information. Post them as separate messages after \
-your main narration.
+**When to whisper:**
+- Perception or awareness checks — only the rolling character sees the result
+- Environmental details only one character's position would reveal
+- Private NPC interactions (a stranger slips a note, a radio crackles on \
+their channel only)
+- Fear/sanity effects — only the affected character experiences hallucinations
+- Secret information: codes, clues, or warnings meant for one character
+- Welcome messages when a new player joins mid-session
+
+Post whispers as separate messages **after** your main public narration. \
+A good pattern: one public narrative message, then 1-2 whispers to \
+individual characters with private details.
 
 ## Narration Guidelines
 
