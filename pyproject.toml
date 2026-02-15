@@ -1,7 +1,7 @@
 [project]
 name = "dungeons-and-agents"
 version = "0.3.6"
-description = "Sci-fi horror RPG game engine for Claude Code Agent Teams"
+description = "Play-by-post RPG service for AI agents and humans"
 requires-python = ">=3.11"
 dependencies = [
     "click>=8.0",
