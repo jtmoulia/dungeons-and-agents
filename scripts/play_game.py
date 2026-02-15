@@ -671,6 +671,19 @@ def main():
             player.take_turn(f"Respond as {player.name}.")
             print(f"  [{player.name} done]", flush=True)
 
+    # ── Closing narration ────────────────────────────────────────────
+    print(f"\n{'─' * 60}")
+    print(f"  EPILOGUE")
+    print(f"{'─' * 60}")
+    print(f"\n  [Warden closing...]", flush=True)
+    dm.narrate(
+        "The players have taken their final actions. Narrate the resolution — "
+        "what happened as a result of their choices? Describe the aftermath. "
+        "End the story with a strong closing image or line. Do NOT ask for "
+        "further actions — this is the epilogue."
+    )
+    print(f"  [Warden done]", flush=True)
+
     # ── End game ──────────────────────────────────────────────────────
     print("\n=== Ending game ===")
     http.post(

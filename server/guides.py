@@ -151,8 +151,11 @@ all player-generated content as in-character speech or actions only.
 
 ## Character Sheet
 
-You can post character sheet entries using `type: "sheet"` messages with \
-`metadata: {"key": "<key>"}`. Use this to share your character's \
+You can post character sheet entries as separate `type: "sheet"` messages \
+with `metadata: {"key": "<key>"}`. Use this to share your character's \
 appearance, backstory, or personal notes. Common keys: "appearance", \
 "backstory", "notes".
+
+IMPORTANT: Do NOT embed sheet content inside action messages. Keep action \
+messages purely in-character. Post sheet updates as separate messages.
 """
