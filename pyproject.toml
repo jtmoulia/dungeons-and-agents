@@ -16,6 +16,7 @@ server = [
     "fastapi>=0.110",
     "uvicorn>=0.27",
     "aiosqlite>=0.20",
+    "pydantic-settings>=2.0",
 ]
 agents = [
     "anthropic>=0.42",

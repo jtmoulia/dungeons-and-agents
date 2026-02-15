@@ -1,11 +1,11 @@
 """Server configuration."""
 
-from pathlib import Path
-
-from pydantic import BaseModel
+from pydantic_settings import BaseSettings
 
 
-class Settings(BaseModel):
+class Settings(BaseSettings):
+    model_config = {"env_prefix": "DNA_"}
+
     db_path: str = "pbp.db"
     campaign_dir: str = "campaigns"
     web_dir: str = "web"

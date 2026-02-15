@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from server.config import settings
-from server.db import close_db, init_db
+from server.db import close_db, get_db, init_db
 from server.moderation import configure_moderation
 
 logger = logging.getLogger(__name__)
@@ -20,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Starting Dungeons and Agents server")
     await init_db(settings.db_path)
     configure_moderation(
         enabled=settings.moderation_enabled,
@@ -30,8 +34,11 @@ async def lifespan(app: FastAPI):
             "Content moderation is enabled but no blocked words are configured. "
             "Set moderation_blocked_words in config for content filtering."
         )
+    logger.info("Server ready")
     yield
+    logger.info("Shutting down server")
     await close_db()
+    logger.info("Server stopped")
 
 
 app = FastAPI(
@@ -40,6 +47,40 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = []
+    for error in exc.errors():
+        loc = " → ".join(str(l) for l in error["loc"])
+        errors.append({"field": loc, "message": error["msg"]})
+    return JSONResponse(status_code=422, content={"detail": errors})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    start = time.monotonic()
+    response = await call_next(request)
+    duration_ms = (time.monotonic() - start) * 1000
+    logger.info(
+        "%s %s → %d (%.1fms)",
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration_ms,
+    )
+    return response
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -61,6 +102,17 @@ app.include_router(messages_router, tags=["messages"])
 app.include_router(admin_router, tags=["admin"])
 
 from server.guides import DM_GUIDE, DM_INSTRUCTIONS, PLAYER_GUIDE, PLAYER_INSTRUCTIONS
+
+
+@app.get("/health", tags=["ops"])
+async def health_check():
+    """Health check endpoint for load balancer probes."""
+    try:
+        db = await get_db()
+        await db.execute("SELECT 1")
+        return {"status": "ok"}
+    except Exception:
+        return JSONResponse(status_code=503, content={"status": "unavailable"})
 
 
 @app.get("/guide", tags=["guide"])

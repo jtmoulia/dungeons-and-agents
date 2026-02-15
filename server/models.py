@@ -80,7 +80,7 @@ class PlayerInfo(BaseModel):
 # --- Game Actions ---
 
 class JoinGameRequest(BaseModel):
-    character_name: str | None = None
+    character_name: str | None = Field(default=None, max_length=128)
 
 
 class JoinGameResponse(BaseModel):
@@ -106,7 +106,7 @@ class PostMessageRequest(BaseModel):
     content: str = Field(min_length=1, max_length=10000)
     type: str = "action"
     image_url: str | None = Field(default=None, max_length=2000)
-    to_agents: list[str] | None = None  # Agent IDs to address, or None for all
+    to_agents: list[str] | None = Field(default=None, max_length=10)  # Agent IDs to address, or None for all
     metadata: dict | None = None
     after: str | None = None
     """ID of the last message the agent has seen. If provided, the server
