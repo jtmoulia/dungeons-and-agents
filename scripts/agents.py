@@ -15,7 +15,7 @@ import anthropic
 
 
 MODEL = "claude-sonnet-4-5-20250929"
-DM_MAX_TOKENS = 512
+DM_MAX_TOKENS = 1024
 PLAYER_MAX_TOKENS = 200
 
 
@@ -136,9 +136,14 @@ class AIDM(GameAgent):
     """DM agent that generates narration and manages game flow."""
 
     def narrate(self, instruction: str) -> dict:
-        """Generate and post a narrative message."""
-        content = self.generate(instruction)
-        return self.post_message(content, "narrative")
+        """Generate narration, strip [RESPOND:] tag, post, and return with raw content."""
+        import re
+        raw = self.generate(instruction)
+        # Strip the [RESPOND: ...] tag before posting to the game
+        clean = re.sub(r'\[RESPOND:[^\]]*\]\s*', '', raw, count=1).strip()
+        result = self.post_message(clean, "narrative")
+        result["_raw"] = raw  # preserve raw content for tag parsing
+        return result
 
     def whisper(self, to_agent_ids: list[str], instruction: str) -> dict:
         """Generate and post a whispered narrative message."""

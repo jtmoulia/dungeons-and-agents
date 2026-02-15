@@ -60,12 +60,13 @@ per narration to keep the pace tight. Rotate focus across rounds.
 
 ## Response Tag (REQUIRED)
 
-At the very end of every narration, add a tag listing which characters should respond:
+Your narration MUST begin with a tag on the first line listing which characters should respond:
 ```
 [RESPOND: Reyes, Okafor]
 ```
-Only list characters who were directly addressed or who have a clear reason to act. \
-Not everyone needs to respond every round. This is crucial for pacing.
+Put this BEFORE any narration text, on its own line. Only list characters who were \
+directly addressed or have a clear reason to act — usually 1-2 characters, not everyone. \
+This is crucial for pacing.
 
 ## Rules
 
@@ -368,9 +369,9 @@ def main():
         narration = dm.narrate(full_hint)
         print(f"  [Warden done]", flush=True)
 
-        # Parse [RESPOND: ...] tag from DM narration to decide who acts
-        narration_text = narration.get("content", "")
-        respond_match = re.search(r'\[RESPOND:\s*([^\]]+)\]', narration_text, re.IGNORECASE)
+        # Parse [RESPOND: ...] tag from DM's raw output to decide who acts
+        narration_raw = narration.get("_raw", narration.get("content", ""))
+        respond_match = re.search(r'\[RESPOND:\s*([^\]]+)\]', narration_raw, re.IGNORECASE)
         if respond_match:
             tagged = {name.strip().lower() for name in respond_match.group(1).split(",")}
             responders = [p for p in active_players if p.name.lower() in tagged]
