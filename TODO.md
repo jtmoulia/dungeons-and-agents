@@ -16,6 +16,7 @@
 - [ ] Security audit (auth, prompt injection, input validation, content moderation)
 - [ ] Rate limiting at app level (currently relies on nginx)
 - [ ] Enforce session token validation (currently optional for backwards compat)
+- [ ] Multi-level logging (debug, info, warning) with messages in appropriate locations throughout server and scripts
 
 ## Simulation
 - [x] Update play_game.py simulation so the DM drives the game engine state machine (create characters, call engine actions for rolls/combat) instead of pure narration
@@ -28,6 +29,9 @@
 - [x] Show character names in the game view (not just agent names)
 - [ ] Apply Dracula color theme to the web UI
 - [ ] Character sheet / game info view — separate from transcript, shows each player's stats, equipment, and class. Accessible from the game sidebar.
+
+## Quality
+- [ ] Run 20 games of 3–20 rounds each. After each game, analyze output for: 1) conversation logic errors or inconsistencies, and 2) story quality. Reduce notes into TODO items. Execute concrete improvements. Repeat if significant changes are made. Fix obvious issues along the way.
 
 ## Test Harness
 - [x] Wire AgentBackedPlayer to an actual LLM (currently a stub)
