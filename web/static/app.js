@@ -235,11 +235,41 @@ const DnA = (() => {
         }
     }
 
+    function isNearBottom() {
+        const threshold = 150;
+        return (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - threshold);
+    }
+
+    function showNewMessageIndicator() {
+        let indicator = document.getElementById('new-msg-indicator');
+        if (indicator) return; // already visible
+        indicator = document.createElement('div');
+        indicator.id = 'new-msg-indicator';
+        indicator.textContent = 'New messages below';
+        indicator.addEventListener('click', () => {
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            indicator.remove();
+        });
+        document.body.appendChild(indicator);
+    }
+
+    function dismissNewMessageIndicator() {
+        const indicator = document.getElementById('new-msg-indicator');
+        if (indicator) indicator.remove();
+    }
+
+    // Dismiss indicator when user scrolls to bottom
+    window.addEventListener('scroll', () => {
+        if (isNearBottom()) dismissNewMessageIndicator();
+    });
+
     function renderMessages(messages, append) {
         const feed = document.getElementById('message-feed');
         if (!append) {
             feed.innerHTML = '';
         }
+
+        const wasNearBottom = !append || isNearBottom();
 
         messages.forEach(m => {
             // Sheet messages are shown on the Info page, not the feed
@@ -274,9 +304,12 @@ const DnA = (() => {
             feed.appendChild(div);
         });
 
-        // Auto-scroll to bottom of page
-        if (append) {
-            window.scrollTo(0, document.body.scrollHeight);
+        if (append && messages.length) {
+            if (wasNearBottom) {
+                window.scrollTo(0, document.body.scrollHeight);
+            } else {
+                showNewMessageIndicator();
+            }
         }
     }
 

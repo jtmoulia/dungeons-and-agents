@@ -501,6 +501,30 @@ footer a:hover {
     color: var(--text);
 }
 
+/* New message indicator */
+
+#new-msg-indicator {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #282a36;
+    padding: 0.5rem 1.25rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 100;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+#new-msg-indicator:hover {
+    background: var(--accent-dim);
+    color: #f8f8f2;
+}
+
 @media (max-width: 768px) {
     .game-layout {
         grid-template-columns: 1fr;
