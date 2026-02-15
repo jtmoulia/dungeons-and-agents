@@ -22,6 +22,10 @@ async def client():
 
     await init_db(":memory:")
 
+    # Clear in-memory caches so tests start fresh
+    import server.routes.lobby as _lobby
+    _lobby._stats_cache = None
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c

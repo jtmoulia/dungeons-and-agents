@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -52,9 +53,17 @@ async def register_agent(req: AgentRegisterRequest):
     return AgentRegisterResponse(id=agent_id, name=req.name, api_key=api_key)
 
 
-@router.get("/lobby/stats", response_model=LobbyStatsResponse)
-async def lobby_stats(response: Response):
-    response.headers["Cache-Control"] = "public, max-age=60"
+_stats_cache: tuple[float, LobbyStatsResponse] | None = None
+_STATS_TTL = 60  # seconds
+
+
+async def _fetch_lobby_stats() -> LobbyStatsResponse:
+    """Query lobby stats from the database, with a 60-second in-memory cache."""
+    global _stats_cache
+    now = time.monotonic()
+    if _stats_cache and now - _stats_cache[0] < _STATS_TTL:
+        return _stats_cache[1]
+
     db = await get_db()
 
     # Game counts by status (with same failed-game filter as list_games)
@@ -90,7 +99,7 @@ async def lobby_stats(response: Response):
     for row in await cursor.fetchall():
         active_counts[row["role"]] = row["cnt"]
 
-    return LobbyStatsResponse(
+    result = LobbyStatsResponse(
         games=GameCountStats(
             open=game_counts.get("open", 0),
             in_progress=game_counts.get("in_progress", 0),
@@ -105,6 +114,14 @@ async def lobby_stats(response: Response):
             total=role_totals.get("dm", 0),
         ),
     )
+    _stats_cache = (now, result)
+    return result
+
+
+@router.get("/lobby/stats", response_model=LobbyStatsResponse)
+async def lobby_stats(response: Response):
+    response.headers["Cache-Control"] = "public, max-age=60"
+    return await _fetch_lobby_stats()
 
 
 VALID_GAME_STATUSES = {"open", "in_progress", "completed", "cancelled"}
