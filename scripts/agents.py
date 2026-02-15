@@ -282,27 +282,65 @@ class AIPlayer(GameAgent):
 class AIDM(GameAgent):
     """DM agent that generates narration and manages game flow."""
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Character name → agent ID mapping, set by the orchestrator
+        self.character_agents: dict[str, str] = {}
+
+    @staticmethod
+    def _extract_json(raw: str) -> dict | None:
+        """Extract a JSON object from raw LLM text, handling preamble and code fences."""
+        text = raw.strip()
+        # Try direct parse first
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+        # Try extracting from code fence
+        if "```" in text:
+            parts = text.split("```")
+            for part in parts[1::2]:  # odd-indexed parts are inside fences
+                inner = part.strip()
+                if inner.startswith("json"):
+                    inner = inner[4:].strip()
+                try:
+                    return json.loads(inner)
+                except json.JSONDecodeError:
+                    continue
+        # Try finding a JSON object in the text
+        start = text.find("{")
+        if start >= 0:
+            # Find the matching closing brace
+            depth = 0
+            for i in range(start, len(text)):
+                if text[i] == "{":
+                    depth += 1
+                elif text[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        try:
+                            return json.loads(text[start:i + 1])
+                        except json.JSONDecodeError:
+                            break
+        return None
+
     def _parse_dm_response(self, raw: str) -> dict:
         """Parse DM JSON response (narration, respond, whispers) from raw LLM output."""
-        try:
-            text = raw.strip()
-            if text.startswith("```"):
-                text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-                if text.endswith("```"):
-                    text = text[:-3]
-                text = text.strip()
-            data = json.loads(text)
+        data = self._extract_json(raw)
+        if data and "narration" in data:
             return {
                 "narration": data["narration"],
                 "respond": data.get("respond", []),
                 "whispers": data.get("whispers", []),
             }
-        except (json.JSONDecodeError, KeyError):
-            return {"narration": raw, "respond": [], "whispers": []}
+        return {"narration": raw, "respond": [], "whispers": []}
 
     def _resolve_character_to_agents(self, character_names: list[str]) -> list[str]:
-        """Look up agent IDs for character names from cached messages."""
-        name_to_agent: dict[str, str] = {}
+        """Look up agent IDs for character names."""
+        # Build lookup from explicit mapping + message cache
+        name_to_agent: dict[str, str] = {
+            k.lower(): v for k, v in self.character_agents.items()
+        }
         for msg in self._message_cache:
             cn = msg.get("character_name")
             aid = msg.get("agent_id")
@@ -314,13 +352,33 @@ class AIDM(GameAgent):
             if n.lower() in name_to_agent
         ]
 
-    def _post_whispers(self, whispers: list[dict]) -> None:
-        """Post whisper messages from the DM response."""
-        for w in whispers:
-            to_names = w.get("to", [])
-            content = w.get("content", "")
-            if not to_names or not content:
-                continue
+    def _post_whispers(self, whispers) -> None:
+        """Post whisper messages from the DM response.
+
+        Handles multiple formats:
+        - List of dicts: [{"to": ["Name"], "content": "..."}]
+        - Dict mapping: {"Name": "content", ...}
+        """
+        if not whispers:
+            return
+
+        # Normalize to list of (names, content) tuples
+        items: list[tuple[list[str], str]] = []
+        if isinstance(whispers, dict):
+            for name, content in whispers.items():
+                if isinstance(content, str):
+                    items.append(([name], content))
+        elif isinstance(whispers, list):
+            for w in whispers:
+                if isinstance(w, dict):
+                    to_names = w.get("to", [])
+                    if isinstance(to_names, str):
+                        to_names = [to_names]
+                    content = w.get("content", "")
+                    if to_names and content:
+                        items.append((to_names, content))
+
+        for to_names, content in items:
             agent_ids = self._resolve_character_to_agents(to_names)
             if agent_ids:
                 self.post_message(content, "narrative", to_agents=agent_ids)

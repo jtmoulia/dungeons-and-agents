@@ -426,17 +426,31 @@ def main():
 
     # ── Generate characters and join ──────────────────────────────────
     print("\n=== Generating characters ===")
+    used_names: set[str] = set()
+
+    def _unique_identity(char_class: CharacterClass, sheet: str | None) -> tuple[str, str]:
+        """Generate a character identity, retrying if the name collides."""
+        name, identity = _generate_character_identity(char_class, sheet)
+        for _ in range(4):
+            if name.lower() not in used_names:
+                break
+            name, identity = _generate_character_identity(char_class, sheet)
+        else:
+            if name.lower() in used_names:
+                name = f"{name}-{random.randint(10, 99)}"
+        used_names.add(name.lower())
+        return name, identity
 
     # Player 1
-    p1_name, p1_identity = _generate_character_identity(player_classes[0], None)
+    p1_name, p1_identity = _unique_identity(player_classes[0], None)
     print(f"  Player 1: {p1_name} ({player_classes[0].value})")
 
     # Player 2
-    p2_name, p2_identity = _generate_character_identity(player_classes[1], None)
+    p2_name, p2_identity = _unique_identity(player_classes[1], None)
     print(f"  Player 2: {p2_name} ({player_classes[1].value})")
 
     # Player 3 (generated now, joins later)
-    p3_name, p3_identity = _generate_character_identity(player_classes[2], None)
+    p3_name, p3_identity = _unique_identity(player_classes[2], None)
     print(f"  Player 3: {p3_name} ({player_classes[2].value}) — joins mid-session")
 
     # ── Players join ──────────────────────────────────────────────────
@@ -453,6 +467,13 @@ def main():
     p2_sheet = _format_character_sheet(p2_name)
     if p2_sheet:
         _, p2_identity = _generate_character_identity(player_classes[1], p2_sheet)
+
+    # Format all character sheets for the DM briefing
+    all_sheets: dict[str, str] = {}
+    for name in [p1_name, p2_name]:
+        sheet = _format_character_sheet(name)
+        if sheet:
+            all_sheets[name] = sheet
 
     # ── Start game ────────────────────────────────────────────────────
     print("\n=== Starting game ===")
@@ -493,6 +514,12 @@ def main():
             game_id=game_id,
         )
 
+    # Register character→agent mapping so DM can resolve whisper targets
+    dm.character_agents = {
+        p1_name: p1_agent["id"],
+        p2_name: p2_agent["id"],
+    }
+
     player1 = AIPlayer(
         name=p1_name,
         system_prompt=PLAYER_SYSTEM_PROMPT.format(
@@ -517,6 +544,7 @@ def main():
 
     active_players: list[AIPlayer] = [player1, player2]
     player3: AIPlayer | None = None  # joins later
+    p3_sheet: str | None = None
 
     # ── DM briefing ───────────────────────────────────────────────────
     char_summaries = []
@@ -524,16 +552,24 @@ def main():
         char_summaries.append(f"- {name} (agent: {agent['id']})" + (f"\n{sheet}" if sheet else ""))
     joining_later = f"- {p3_name} (agent: {p3_agent['id']}) — joins mid-session around round 3"
 
+    # Format character sheets block for DM reference
+    sheets_block = ""
+    for name, sheet in all_sheets.items():
+        sheets_block += f"\n{sheet}\n"
+
     briefing = (
         f"Game briefing: you have {args.rounds} rounds total to tell this story. "
         f"Pace yourself — introduction, escalation, climax, resolution.\n\n"
         f"Current players:\n" + "\n".join(char_summaries) + "\n\n"
         f"Joining later:\n{joining_later}\n\n"
-        f"When a player joins, welcome them with a whisper sharing their capabilities "
-        f"(use to_agents), then fold them into the scene.\n\n"
-        f"Use whispers throughout the game to share private observations, hints, or "
-        f"unsettling details with individual characters when dramatically appropriate.\n\n"
-        f"Start the game now. Set the scene and prompt the active players."
+        f"Character sheets:\n{sheets_block}\n"
+        f"IMPORTANT — You MUST include whispers in your first response. Use the \"whispers\" "
+        f"field in your JSON response to privately send each player their character stats. "
+        f"Example format:\n"
+        f'{{"narration": "...", "respond": [...], "whispers": {{'
+        f'"CharacterName": "Your stats: HP 20/20, Combat 35, ...\\nDescribe your appearance and personality."}}}}\n\n'
+        f"Use whispers throughout the game for private info, hints, or unsettling details.\n\n"
+        f"Start the game now. Whisper each current player their stats, then set the scene."
     )
 
     # ── Round 1: DM opens ─────────────────────────────────────────────
@@ -585,11 +621,20 @@ def main():
                 game_id=game_id,
             )
             active_players.append(player3)
+            dm.character_agents[p3_name] = p3_agent["id"]
 
         # DM narrates
         active_names = ", ".join(p.name for p in active_players)
         is_last = round_label == args.rounds
         round_instruction = f"Round {round_label}/{args.rounds}. Active players: {active_names}."
+
+        # If a player just joined, tell the DM to whisper them their stats
+        if round_num == carol_join_round and p3_sheet:
+            round_instruction += (
+                f"\n\n{p3_name} just joined the game. Welcome them into the scene. "
+                f"Whisper them their character stats and ask for a character description.\n"
+                f"Their sheet:\n{p3_sheet}"
+            )
         if is_last:
             round_instruction += (
                 " This is the FINAL round. Wrap up the story — resolve the crisis, "
