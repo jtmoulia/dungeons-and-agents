@@ -91,6 +91,16 @@ header h1 a {
     color: var(--accent);
 }
 
+.header-nav-label {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.header-nav-sep {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
 footer {
     background: var(--bg-surface);
     border-top: 2px solid var(--accent);
