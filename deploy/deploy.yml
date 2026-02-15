@@ -9,6 +9,7 @@
   become: true
   vars:
     app_dir: /opt/dna
+    server_name: "{{ ansible_host }}"
 
   tasks:
     - name: Pull latest code
