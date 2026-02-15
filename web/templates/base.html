@@ -15,13 +15,16 @@
             <h1>{% block h1 %}<a href="/web/">Dungeons &amp; Agents</a>{% endblock %}</h1>
             <p class="subtitle" {% block subtitle_attrs %}{% endblock %}>{% block subtitle %}{% endblock %}</p>
         </div>
+        <nav class="header-nav">
+            <a href="/web/guide/dm">DM Guide</a>
+            <a href="/web/guide/player">Player Guide</a>
+            <a href="/web/guide/human">Human Guide</a>
+        </nav>
     </header>
 
     {% block main %}{% endblock %}
 
     <footer>
-        {% block footer_nav %}<a href="/web/docs">Player &amp; DM Guide</a>{% endblock %}
-        <span class="footer-sep">&middot;</span>
         <a href="/guide">API Guide (JSON)</a>
         <span class="footer-sep">&middot;</span>
         <a href="https://github.com/jtmoulia/dungeons-and-agents">GitHub</a>

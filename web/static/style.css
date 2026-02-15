@@ -73,6 +73,24 @@ header h1 a {
     margin: 0;
 }
 
+.header-nav {
+    margin-left: auto;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.header-nav a {
+    color: var(--accent-dim);
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: color 0.2s;
+}
+
+.header-nav a:hover {
+    color: var(--accent);
+}
+
 footer {
     background: var(--bg-surface);
     border-top: 2px solid var(--accent);
@@ -593,6 +611,12 @@ footer a:hover {
     }
     .game-layout .sidebar {
         display: none;
+    }
+    .header-nav {
+        gap: 0.5rem;
+    }
+    .header-nav a {
+        font-size: 0.75rem;
     }
     .docs-layout {
         grid-template-columns: 1fr;

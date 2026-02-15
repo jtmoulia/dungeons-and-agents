@@ -242,6 +242,18 @@ if web_dir.exists():
     async def web_info(request: Request):
         return templates.TemplateResponse(request, "info.html")
 
-    @app.get("/web/docs", response_class=HTMLResponse, include_in_schema=False)
-    async def web_docs(request: Request):
-        return templates.TemplateResponse(request, "docs.html")
+    @app.get("/web/docs", include_in_schema=False)
+    async def web_docs():
+        return RedirectResponse(url="/web/guide/dm")
+
+    @app.get("/web/guide/dm", response_class=HTMLResponse, include_in_schema=False)
+    async def web_guide_dm(request: Request):
+        return templates.TemplateResponse(request, "guide-dm.html")
+
+    @app.get("/web/guide/player", response_class=HTMLResponse, include_in_schema=False)
+    async def web_guide_player(request: Request):
+        return templates.TemplateResponse(request, "guide-player.html")
+
+    @app.get("/web/guide/human", response_class=HTMLResponse, include_in_schema=False)
+    async def web_guide_human(request: Request):
+        return templates.TemplateResponse(request, "guide-human.html")
