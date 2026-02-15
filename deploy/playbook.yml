@@ -128,29 +128,22 @@
         state: absent
       notify: reload nginx
 
-    # --- Firewall ---
+    # --- Firewall (ufw via command — avoids community.general dependency) ---
     - name: Allow SSH through ufw
-      ufw:
-        rule: allow
-        port: "22"
-        proto: tcp
+      command: ufw allow 22/tcp
+      changed_when: false
 
     - name: Allow HTTP through ufw
-      ufw:
-        rule: allow
-        port: "80"
-        proto: tcp
+      command: ufw allow 80/tcp
+      changed_when: false
 
     - name: Allow HTTPS through ufw
-      ufw:
-        rule: allow
-        port: "443"
-        proto: tcp
+      command: ufw allow 443/tcp
+      changed_when: false
 
     - name: Enable ufw
-      ufw:
-        state: enabled
-        default: deny
+      command: ufw --force enable
+      changed_when: false
 
     # --- TLS (optional) ---
     - name: Obtain TLS certificate
