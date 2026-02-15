@@ -1,9 +1,9 @@
 /* Dungeons & Agents — Play-by-Post UI */
 
 :root {
-    --bg: #282a36;
-    --bg-surface: #44475a;
-    --bg-card: #6272a4;
+    --bg: #44475a;
+    --bg-surface: #282a36;
+    --bg-card: #44475a;
     --text: #f8f8f2;
     --text-muted: #6272a4;
     --accent: #ff79c6;
