@@ -282,11 +282,9 @@ class AIPlayer(GameAgent):
 class AIDM(GameAgent):
     """DM agent that generates narration and manages game flow."""
 
-    def narrate(self, instruction: str) -> dict:
-        """Generate narration as JSON with respond list, post, and return."""
-        raw = self.generate(instruction)
+    def _parse_dm_response(self, raw: str) -> dict:
+        """Parse DM JSON response (narration, respond, whispers) from raw LLM output."""
         try:
-            # Strip markdown code fences if present
             text = raw.strip()
             if text.startswith("```"):
                 text = text.split("\n", 1)[1] if "\n" in text else text[3:]
@@ -294,14 +292,49 @@ class AIDM(GameAgent):
                     text = text[:-3]
                 text = text.strip()
             data = json.loads(text)
-            narration = data["narration"]
-            respond = data.get("respond", [])
+            return {
+                "narration": data["narration"],
+                "respond": data.get("respond", []),
+                "whispers": data.get("whispers", []),
+            }
         except (json.JSONDecodeError, KeyError):
-            # Fallback: treat raw text as narration, no respond list
-            narration = raw
-            respond = []
-        result = self.post_message(narration, "narrative")
-        result["_respond"] = respond
+            return {"narration": raw, "respond": [], "whispers": []}
+
+    def _resolve_character_to_agents(self, character_names: list[str]) -> list[str]:
+        """Look up agent IDs for character names from cached messages."""
+        name_to_agent: dict[str, str] = {}
+        for msg in self._message_cache:
+            cn = msg.get("character_name")
+            aid = msg.get("agent_id")
+            if cn and aid:
+                name_to_agent[cn.lower()] = aid
+        return [
+            name_to_agent[n.lower()]
+            for n in character_names
+            if n.lower() in name_to_agent
+        ]
+
+    def _post_whispers(self, whispers: list[dict]) -> None:
+        """Post whisper messages from the DM response."""
+        for w in whispers:
+            to_names = w.get("to", [])
+            content = w.get("content", "")
+            if not to_names or not content:
+                continue
+            agent_ids = self._resolve_character_to_agents(to_names)
+            if agent_ids:
+                self.post_message(content, "narrative", to_agents=agent_ids)
+
+    def narrate(self, instruction: str) -> dict:
+        """Generate narration as JSON with respond list, post whispers, then narration."""
+        raw = self.generate(instruction)
+        parsed = self._parse_dm_response(raw)
+
+        # Post whispers first (before public narration)
+        self._post_whispers(parsed["whispers"])
+
+        result = self.post_message(parsed["narration"], "narrative")
+        result["_respond"] = parsed["respond"]
         return result
 
     def whisper(self, to_agent_ids: list[str], instruction: str) -> dict:
@@ -549,7 +582,7 @@ class EngineAIDM(AIDM):
         return "[The Warden pauses, gathering thoughts...]", tool_results
 
     def narrate(self, instruction: str) -> dict:
-        """Generate narration with engine tools, post roll messages, then narration."""
+        """Generate narration with engine tools, post roll messages, whispers, then narration."""
         raw, tool_results = self.generate_with_tools(instruction)
 
         # Post each tool result as a "roll" message
@@ -558,21 +591,11 @@ class EngineAIDM(AIDM):
                 msg_text = self._format_tool_result_message(tr["tool"], tr["result"])
                 self.post_message(msg_text, "roll")
 
-        # Parse narration JSON (same format as AIDM)
-        try:
-            text = raw.strip()
-            if text.startswith("```"):
-                text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-                if text.endswith("```"):
-                    text = text[:-3]
-                text = text.strip()
-            data = json.loads(text)
-            narration = data["narration"]
-            respond = data.get("respond", [])
-        except (json.JSONDecodeError, KeyError):
-            narration = raw
-            respond = []
+        parsed = self._parse_dm_response(raw)
 
-        result = self.post_message(narration, "narrative")
-        result["_respond"] = respond
+        # Post whispers before public narration
+        self._post_whispers(parsed["whispers"])
+
+        result = self.post_message(parsed["narration"], "narrative")
+        result["_respond"] = parsed["respond"]
         return result

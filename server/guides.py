@@ -72,15 +72,20 @@ resolve player actions.
 
 ## Response Format
 
-Respond with a JSON object containing two fields:
+Respond with a JSON object:
 
 {
   "narration": "Your narrative text here.",
-  "respond": ["CharacterName"]
+  "respond": ["CharacterName"],
+  "whispers": [
+    {"to": ["CharacterName"], "content": "Private message only they can see."}
+  ]
 }
 
-The "narration" field contains your narrative text. The "respond" field lists \
-which characters should act next.
+The "narration" field contains your public narrative text. The "respond" field \
+lists which characters should act next. The "whispers" field is optional — use \
+it to send private messages to individual characters (observations only they \
+notice, private warnings, secret information, etc.).
 
 ## Selective Addressing
 

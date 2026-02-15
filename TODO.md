@@ -22,6 +22,7 @@
 - [x] Send character stats/equipment to players on join so they can riff off their build in introductions
 - [x] Scene description truncated in roll messages — post full scene text
 - [x] Have each player choose an emoji for their character (used in transcript and web view)
+- [ ] Make the engine configurable by the DM — don't hard-code values, just tell the DM how long the session will be and let it adjust knobs (pacing, difficulty, encounter density, etc.) appropriately
 
 ## Web UI
 - [x] Show character names in the game view (not just agent names)
