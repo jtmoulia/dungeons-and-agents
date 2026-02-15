@@ -3,6 +3,9 @@
 Provides GameAgent base class and AIPlayer/AIDM subclasses that use
 the Anthropic Claude API to generate in-character actions and narration.
 Each agent communicates with the server via the HTTP API.
+
+Messages are cached locally — each agent only fetches new messages since
+the last poll, using the ?after= parameter for efficient incremental reads.
 """
 
 from __future__ import annotations
@@ -12,7 +15,8 @@ import anthropic
 
 
 MODEL = "claude-sonnet-4-5-20250929"
-MAX_TOKENS = 1024
+DM_MAX_TOKENS = 512
+PLAYER_MAX_TOKENS = 200
 
 
 class GameAgent:
@@ -36,6 +40,8 @@ class GameAgent:
         self.api_key = api_key
         self.session_token = session_token
         self.game_id = game_id
+        self._message_cache: list[dict] = []
+        self._last_msg_id: str | None = None
 
     def _headers(self) -> dict[str, str]:
         return {
@@ -43,14 +49,22 @@ class GameAgent:
             "X-Session-Token": self.session_token,
         }
 
-    def get_messages(self) -> list[dict]:
-        """Fetch the full message history for this game."""
+    def sync_messages(self) -> list[dict]:
+        """Fetch only new messages since last sync, append to cache."""
+        params: dict = {"limit": 500}
+        if self._last_msg_id:
+            params["after"] = self._last_msg_id
         resp = self.http.get(
-            f"/games/{self.game_id}/messages?limit=500",
+            f"/games/{self.game_id}/messages",
+            params=params,
             headers=self._headers(),
         )
         resp.raise_for_status()
-        return resp.json()
+        new_msgs = resp.json()
+        if new_msgs:
+            self._message_cache.extend(new_msgs)
+            self._last_msg_id = new_msgs[-1]["id"]
+        return self._message_cache
 
     def format_transcript(self, messages: list[dict]) -> str:
         """Convert game messages into a readable transcript for the LLM."""
@@ -73,10 +87,10 @@ class GameAgent:
                 lines.append(f"[{mtype}] {sender}: {content}")
         return "\n\n".join(lines)
 
-    def generate(self, instruction: str) -> str:
-        """Call the LLM with system prompt + game transcript + instruction."""
-        messages_history = self.get_messages()
-        transcript = self.format_transcript(messages_history)
+    def generate(self, instruction: str, max_tokens: int = DM_MAX_TOKENS) -> str:
+        """Call the LLM with system prompt + cached transcript + instruction."""
+        all_messages = self.sync_messages()
+        transcript = self.format_transcript(all_messages)
 
         user_content = ""
         if transcript:
@@ -85,14 +99,14 @@ class GameAgent:
 
         response = self.llm.messages.create(
             model=MODEL,
-            max_tokens=MAX_TOKENS,
+            max_tokens=max_tokens,
             system=self.system_prompt,
             messages=[{"role": "user", "content": user_content}],
         )
         return response.content[0].text
 
     def post_message(self, content: str, msg_type: str, to_agents: list[str] | None = None) -> dict:
-        """Post a message to the game."""
+        """Post a message to the game and add it to the local cache."""
         body: dict = {"content": content, "type": msg_type}
         if to_agents:
             body["to_agents"] = to_agents
@@ -102,7 +116,11 @@ class GameAgent:
             headers=self._headers(),
         )
         resp.raise_for_status()
-        return resp.json()
+        posted = resp.json()
+        # Add to cache so we don't re-fetch our own message
+        self._message_cache.append(posted)
+        self._last_msg_id = posted["id"]
+        return posted
 
 
 class AIPlayer(GameAgent):
@@ -110,7 +128,7 @@ class AIPlayer(GameAgent):
 
     def take_turn(self, instruction: str = "It's your turn. Declare your action.") -> dict:
         """Generate and post an action message."""
-        content = self.generate(instruction)
+        content = self.generate(instruction, max_tokens=PLAYER_MAX_TOKENS)
         return self.post_message(content, "action")
 
 
