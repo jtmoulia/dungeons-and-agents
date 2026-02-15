@@ -333,7 +333,17 @@ class AIDM(GameAgent):
                 "respond": data.get("respond", []),
                 "whispers": data.get("whispers", []),
             }
-        return {"narration": raw, "respond": [], "whispers": []}
+        # Fallback: try to clean up obvious JSON artifacts
+        text = raw.strip()
+        if text.startswith("```"):
+            # Strip code fence wrapper even if JSON parse failed
+            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+            if text.startswith("json"):
+                text = text[4:].strip()
+        return {"narration": text, "respond": [], "whispers": []}
 
     def _resolve_character_to_agents(self, character_names: list[str]) -> list[str]:
         """Look up agent IDs for character names."""
