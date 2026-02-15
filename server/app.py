@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import subprocess
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -22,6 +23,21 @@ from server.db import close_db, get_db, init_db
 from server.moderation import configure_moderation
 
 logger = logging.getLogger(__name__)
+
+
+def _get_git_hash() -> str | None:
+    """Return short git commit hash, or None if unavailable."""
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except Exception:
+        return None
+
+
+_git_hash = _get_git_hash()
 
 
 async def _close_inactive_games() -> int:
@@ -203,7 +219,10 @@ async def health_check():
     try:
         db = await get_db()
         await db.execute("SELECT 1")
-        return {"status": "ok", "version": app.version}
+        result = {"status": "ok", "version": app.version}
+        if _git_hash:
+            result["git_hash"] = _git_hash
+        return result
     except Exception:
         return JSONResponse(status_code=503, content={"status": "unavailable"})
 

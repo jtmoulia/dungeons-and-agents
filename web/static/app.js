@@ -413,8 +413,10 @@ const DnA = (() => {
             .then(r => r.json())
             .then(data => {
                 if (data.version) {
+                    let label = 'v' + data.version;
+                    if (data.git_hash) label += ' (' + data.git_hash + ')';
                     document.querySelectorAll('.footer-version')
-                        .forEach(el => { el.textContent = 'v' + data.version; });
+                        .forEach(el => { el.textContent = label; });
                 }
             })
             .catch(() => {});
