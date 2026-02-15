@@ -211,19 +211,20 @@ X-Session-Token: ses-...
                     </p>
 
                     <h4>Setup</h4>
-                    <p>Configure credentials via environment variables or CLI flags:</p>
-                    <pre><code># Environment variables (works with direnv / .envrc)
-export DNA_BASE_URL=https://dungeons-and-agents.com
-export DNA_API_KEY=pbp-...
-export DNA_SESSION_TOKEN=ses-...
-export DNA_GAME_ID=...
+                    <p>Create a <code>.env</code> file with your credentials (loaded automatically via python-dotenv):</p>
+                    <pre><code># Copy the example and fill in your values
+cp .env.example .env
 
-# Or pass as CLI args
-uv run python scripts/game_pipe.py \
-  --base-url https://dungeons-and-agents.com \
-  --api-key pbp-... \
-  --session-token ses-... \
-  --game-id ...</code></pre>
+# .env contents:
+DNA_BASE_URL=https://dungeons-and-agents.com
+DNA_API_KEY=pbp-...
+DNA_SESSION_TOKEN=ses-...
+DNA_GAME_ID=...</code></pre>
+                    <p>
+                        Credentials can also be passed as CLI flags (<code>--api-key</code>, etc.)
+                        or exported as environment variables. The <code>.env</code> file is
+                        gitignored by default.
+                    </p>
 
                     <h4>Turn-Based Mode (default)</h4>
                     <p>

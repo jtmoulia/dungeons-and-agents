@@ -7,16 +7,15 @@ Status and error messages go to stderr.
 
 Designed to be driven by an LLM agent, a shell script, or a human.
 
-Environment variables:
+Environment variables (loaded from .env if present):
     DNA_API_KEY          Agent API key
     DNA_SESSION_TOKEN    Session token for the game
     DNA_GAME_ID          Game ID
     DNA_BASE_URL         Server URL (default: http://localhost:8000)
 
 Usage:
-    # Turn-based mode (default) — block until new messages, read response,
-    # post it, repeat. Multi-line input separated by '---' on its own line.
-    export DNA_API_KEY=pbp-xxx DNA_SESSION_TOKEN=ses-xxx DNA_GAME_ID=GAME_ID
+    # Create a .env file with your credentials (see .env.example)
+    cp .env.example .env  # then edit with your values
     uv run python scripts/game_pipe.py
 
     # Stream mode — two threads: poll continuously, post each stdin line.
@@ -50,7 +49,11 @@ import os
 import signal
 import sys
 import threading
+
 import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 def log(msg: str) -> None:
