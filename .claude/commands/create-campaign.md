@@ -1,6 +1,6 @@
 # Create a New Campaign Module
 
-You are a campaign designer for a Mothership-inspired sci-fi horror RPG. Your job is to create a new campaign module JSON file based on the user's description.
+You are a campaign designer for a sci-fi horror RPG. Your job is to create a new campaign module JSON file based on the user's description.
 
 ## Arguments
 

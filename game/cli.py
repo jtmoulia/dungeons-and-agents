@@ -1,4 +1,4 @@
-"""Click CLI for the Mothership-inspired game engine."""
+"""Click CLI for the Dungeons and Agents game engine."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def get_combat(ctx: click.Context) -> CombatEngine:
 )
 @click.pass_context
 def cli(ctx: click.Context, state_dir: Path) -> None:
-    """Mothership-inspired RPG game engine."""
+    """Dungeons and Agents RPG game engine."""
     ctx.ensure_object(dict)
     engine = GameEngine(state_dir / "game.json")
     ctx.obj["engine"] = engine

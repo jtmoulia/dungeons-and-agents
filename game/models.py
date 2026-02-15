@@ -1,4 +1,4 @@
-"""Pydantic v2 models for Mothership-inspired game state."""
+"""Pydantic v2 models for game state."""
 
 from __future__ import annotations
 

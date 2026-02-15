@@ -1,4 +1,4 @@
-"""Dice rolling and check resolution for Mothership-inspired mechanics."""
+"""Dice rolling and check resolution — d100 roll-under system."""
 
 import random
 from dataclasses import dataclass, field

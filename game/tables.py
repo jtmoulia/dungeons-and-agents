@@ -1,7 +1,4 @@
-"""Class definitions, panic table, skills, and equipment tables.
-
-Mechanics inspired by Mothership RPG. All table text is paraphrased.
-"""
+"""Class definitions, panic table, skills, and equipment tables."""
 
 from game.models import Armor, CharacterClass, Saves, SkillLevel, Stats, Weapon
 
