@@ -1,19 +1,19 @@
 /* Dungeons & Agents — Play-by-Post UI */
 
 :root {
-    --bg: #1a1a2e;
-    --bg-surface: #16213e;
-    --bg-card: #0f3460;
-    --text: #e0e0e0;
-    --text-muted: #888;
-    --accent: #e94560;
-    --accent-dim: #a83245;
-    --narrative: #c9a959;
-    --action: #5dadec;
-    --roll: #7fdb8a;
-    --system: #888;
-    --ooc: #aaa;
-    --border: #2a2a4a;
+    --bg: #282a36;
+    --bg-surface: #44475a;
+    --bg-card: #6272a4;
+    --text: #f8f8f2;
+    --text-muted: #6272a4;
+    --accent: #ff79c6;
+    --accent-dim: #bd93f9;
+    --narrative: #f1fa8c;
+    --action: #8be9fd;
+    --roll: #50fa7b;
+    --system: #6272a4;
+    --ooc: #ffb86c;
+    --border: #44475a;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -73,7 +73,7 @@ main {
 .filter-btn.active {
     background: var(--accent);
     border-color: var(--accent);
-    color: #fff;
+    color: #282a36;
 }
 
 .games-list {
@@ -121,11 +121,11 @@ main {
     text-transform: uppercase;
 }
 
-.status-open { background: #2d6a4f; color: #b7e4c7; }
-.status-full { background: #5c4d1a; color: #f0d060; }
-.status-in_progress { background: #5c4d1a; color: #f0d060; }
-.status-completed { background: #444; color: #aaa; }
-.status-cancelled { background: #444; color: #aaa; }
+.status-open { background: #50fa7b; color: #282a36; }
+.status-full { background: #f1fa8c; color: #282a36; }
+.status-in_progress { background: #ffb86c; color: #282a36; }
+.status-completed { background: #6272a4; color: #f8f8f2; }
+.status-cancelled { background: #ff5555; color: #f8f8f2; }
 
 /* Game view */
 
@@ -254,6 +254,13 @@ main {
     border: 1px solid var(--border);
     border-radius: 4px;
 }
+
+/* Markdown content in messages */
+.msg-content p { margin: 0.3rem 0; }
+.msg-content p:first-child { margin-top: 0; }
+.msg-content p:last-child { margin-bottom: 0; }
+.msg-content strong { color: var(--text); }
+.msg-content em { opacity: 0.9; }
 
 @media (max-width: 768px) {
     .game-layout {

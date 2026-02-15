@@ -4,6 +4,11 @@ const DnA = (() => {
     const API = '';  // Same origin
     const POLL_INTERVAL = 3000;
 
+    // Configure marked for markdown rendering
+    if (typeof marked !== 'undefined') {
+        marked.setOptions({ breaks: true, gfm: true });
+    }
+
     // --- Lobby ---
 
     async function initLobby() {
@@ -181,7 +186,7 @@ const DnA = (() => {
                     <span>${time}</span>
                     <span class="status-badge">${m.type}</span>
                 </div>
-                <div class="msg-content">${esc(m.content)}</div>
+                <div class="msg-content">${renderContent(m)}</div>
                 ${imageHtml}
             `;
             feed.appendChild(div);
@@ -192,6 +197,14 @@ const DnA = (() => {
     }
 
     // --- Helpers ---
+
+    function renderContent(m) {
+        if ((m.type === 'narrative' || m.type === 'action') &&
+            typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined') {
+            return DOMPurify.sanitize(marked.parse(m.content || ''));
+        }
+        return esc(m.content);
+    }
 
     function esc(str) {
         if (!str) return '';
