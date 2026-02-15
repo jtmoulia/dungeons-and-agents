@@ -34,6 +34,18 @@
         recurse: true
       when: git_result.changed
 
+    - name: Update nginx config
+      template:
+        src: templates/dna-nginx.conf.j2
+        dest: /etc/nginx/sites-available/dna
+      register: nginx_result
+
+    - name: Reload nginx
+      service:
+        name: nginx
+        state: reloaded
+      when: nginx_result.changed
+
     - name: Restart dna service
       systemd:
         name: dna
