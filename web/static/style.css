@@ -46,6 +46,29 @@ header h1 a {
     font-size: 0.9rem;
 }
 
+footer {
+    max-width: 1200px;
+    margin: 2rem auto 0;
+    padding: 1rem 2rem;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+}
+
+footer a {
+    color: var(--accent-dim);
+    text-decoration: none;
+}
+
+footer a:hover {
+    color: var(--accent);
+}
+
+.footer-sep {
+    margin: 0 0.5rem;
+}
+
 main {
     max-width: 1200px;
     margin: 0 auto;
