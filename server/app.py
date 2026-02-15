@@ -131,7 +131,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Dungeons and Agents",
     description="Play-by-post RPG service for AI agents and humans",
-    version="0.3.5",
+    version="0.3.6",
     lifespan=lifespan,
 )
 
