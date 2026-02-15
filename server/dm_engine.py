@@ -10,34 +10,52 @@ Usage:
     # Or offline (no server connection):
     uv run python -m server.dm_engine --offline
 
-Commands (interactive):
+    # Generic engine:
+    uv run python -m server.dm_engine --offline --engine-type generic \
+        --engine-config path/to/config.json
+
+Commands (interactive — core engine):
     roll <character> <stat> [skill]       - Roll a stat check
     damage <target> <amount>              - Apply damage
     heal <target> <amount>                - Heal a character
     panic <character>                     - Panic check
     stress <character> <amount>           - Add/remove stress
     create <name> [class]                 - Create a character
+
+Commands (interactive — generic engine):
+    roll <character> <stat> [--adv|--dis] [+/-mod] - Roll a stat check
+    damage <target> <amount>              - Apply damage
+    heal <target> <amount>                - Heal a character
+    create <name> [stat=val ...]          - Create a character
+    set_stat <character> <stat> <value>   - Set a stat value
+    set_hp <character> <hp> [max_hp]      - Set HP directly
+    condition add <character> <condition> - Add a condition
+    condition remove <char> <condition>   - Remove a condition
+    combat start <name1> <name2> ...      - Start combat
+    combat next                           - Advance turn
+    combat end                            - End combat
+    inventory add <character> <item>      - Add inventory item
+    inventory remove <character> <item>   - Remove inventory item
+    note <character> <key> <value>        - Set a character note
+
+Common commands:
     state                                 - Show engine state
     characters                            - List characters
     char <name>                           - Show character details
     scene <description>                   - Set scene description
     log [count]                           - Show recent log entries
+    save [path]                           - Save engine state to file
+    load <path>                           - Load engine state from file
+    help                                  - Show commands
+    quit                                  - Exit
 
-    preview roll <character> <stat> [skill] - Dry-run a roll (no side effects)
+Core engine only:
+    preview roll <character> <stat> [skill] - Dry-run a roll
     preview damage <character> <amount>     - Dry-run damage
     odds <character> <stat> [skill]         - Show success probabilities
-    what-if <dice> <threshold> [effect]     - Conditional chain (e.g. 1d20 15 1d10)
+    what-if <dice> <threshold> [effect]     - Conditional chain
     simulate <dice> <threshold> <effect>    - Monte Carlo simulation
-
-    snapshot save [name]                    - Save engine state snapshot
-    snapshot restore [name]                 - Restore from snapshot
-    snapshot list                           - List snapshots
-    snapshot delete <name>                  - Delete a snapshot
-
-    save [path]                             - Save engine state to file
-    load <path>                             - Load engine state from file
-    help                                    - Show commands
-    quit                                    - Exit
+    snapshot save|restore|list|delete [name]
 """
 
 from __future__ import annotations
@@ -75,7 +93,7 @@ def post_result(
 
 
 def _format_character(char) -> str:
-    """Format a character for display."""
+    """Format a core engine character for display."""
     lines = [
         f"  {char.name} — {char.char_class.value}",
         f"    HP: {char.hp}/{char.max_hp} | Wounds: {char.wounds}/{char.max_wounds} | Stress: {char.stress}",
@@ -96,15 +114,37 @@ def _format_character(char) -> str:
     return "\n".join(lines)
 
 
+def _format_generic_character(char) -> str:
+    """Format a generic engine character for display."""
+    lines = [f"  {char.name}"]
+    if char.stats:
+        stats_str = " | ".join(f"{k}: {v}" for k, v in char.stats.items())
+        lines.append(f"    Stats: {stats_str}")
+    if char.hp is not None:
+        lines.append(f"    HP: {char.hp}/{char.max_hp}")
+    if char.conditions:
+        lines.append(f"    Conditions: {', '.join(char.conditions)}")
+    if char.inventory:
+        lines.append(f"    Inventory: {', '.join(char.inventory)}")
+    if char.notes:
+        notes_str = ", ".join(f"{k}={v}" for k, v in char.notes.items())
+        lines.append(f"    Notes: {notes_str}")
+    if not char.alive:
+        lines.append(f"    ** DEAD **")
+    return "\n".join(lines)
+
+
 def run_interactive(
-    engine: GameEngine,
-    preview: PreviewEngine,
+    engine,
+    preview,
     client: httpx.Client | None,
     game_id: str | None,
     headers: dict | None,
+    engine_type: str = "core",
+    fmt_char=None,
 ) -> None:
     mode = "online" if client else "offline"
-    print(f"\nDM Engine ({mode}) — type 'help' for commands\n")
+    print(f"\nDM Engine [{engine_type}] ({mode}) — type 'help' for commands\n")
 
     while True:
         try:
@@ -120,7 +160,10 @@ def run_interactive(
         cmd = parts[0].lower()
 
         try:
-            _handle_command(cmd, parts, engine, preview, client, game_id, headers)
+            if engine_type == "generic":
+                _handle_generic_command(cmd, parts, engine, client, game_id, headers, fmt_char)
+            else:
+                _handle_command(cmd, parts, engine, preview, client, game_id, headers)
         except Exception as e:
             print(f"  Error: {e}")
 
@@ -310,6 +353,211 @@ def _handle_command(
         print(f"  Unknown command: {cmd}. Type 'help' for usage.")
 
 
+def _handle_generic_command(
+    cmd: str, parts: list[str],
+    engine, client: httpx.Client | None,
+    game_id: str | None, headers: dict | None,
+    fmt_char=None,
+) -> None:
+    """Handle commands for the generic engine."""
+    fmt = fmt_char or _format_generic_character
+
+    if cmd == "quit":
+        raise SystemExit(0)
+    elif cmd == "help":
+        print(__doc__)
+    elif cmd == "state":
+        state = engine.get_state()
+        print(f"  Game: {state.name}")
+        print(f"  Scene: {state.scene or '(none)'}")
+        print(f"  Characters: {len(state.characters)}")
+        print(f"  Combat: {'active (round ' + str(state.combat.round) + ')' if state.combat.active else 'inactive'}")
+        if state.combat.active and state.combat.current_combatant:
+            print(f"  Current turn: {state.combat.current_combatant}")
+    elif cmd == "characters":
+        state = engine.get_state()
+        if not state.characters:
+            print("  No characters.")
+        for char in state.characters.values():
+            print(fmt(char))
+    elif cmd == "char":
+        if len(parts) < 2:
+            print("  Usage: char <name>")
+            return
+        char = engine.get_character(parts[1])
+        print(fmt(char))
+    elif cmd == "scene":
+        if len(parts) < 2:
+            state = engine.get_state()
+            print(f"  Scene: {state.scene or '(none)'}")
+            return
+        desc = " ".join(parts[1:])
+        engine.set_scene(desc)
+        print(f"  Scene set.")
+    elif cmd == "log":
+        count = int(parts[1]) if len(parts) > 1 else 10
+        entries = engine.get_log(count)
+        for e in entries:
+            print(f"  [{e.category}] {e.message}")
+        if not entries:
+            print("  No log entries.")
+    elif cmd == "create":
+        if len(parts) < 2:
+            state = engine.get_state()
+            stats = state.config.stat_names
+            print(f"  Usage: create <name> [stat=val ...]")
+            if stats:
+                print(f"  Stats: {', '.join(stats)}")
+            return
+        name = parts[1]
+        char_stats = {}
+        hp = None
+        for p in parts[2:]:
+            if "=" in p:
+                k, v = p.split("=", 1)
+                if k == "hp":
+                    hp = int(v)
+                else:
+                    char_stats[k] = int(v)
+        char = engine.create_character(name, stats=char_stats or None, hp=hp)
+        print(fmt(char))
+    elif cmd == "roll":
+        if len(parts) < 3:
+            print("  Usage: roll <character> <stat> [--adv|--dis] [+/-mod]")
+            return
+        char_name = parts[1]
+        stat = parts[2]
+        advantage = "--adv" in parts
+        disadvantage = "--dis" in parts
+        modifier = 0
+        for p in parts[3:]:
+            if p.startswith("+") or p.startswith("-"):
+                try:
+                    modifier = int(p)
+                except ValueError:
+                    pass
+        result = engine.roll_check(char_name, stat, modifier=modifier,
+                                   advantage=advantage, disadvantage=disadvantage)
+        summary = (
+            f"{char_name} rolls {stat} (target {result.target}): "
+            f"{result.roll} -> {result.result.value}"
+        )
+        if modifier:
+            summary += f" [modifier: {modifier:+d}]"
+        if len(result.all_rolls) > 1:
+            summary += f" [rolls: {result.all_rolls}]"
+        print(f"  {summary}")
+        _maybe_post(client, game_id, headers, summary, {
+            "roll": result.roll, "natural": result.natural,
+            "target": result.target, "result": result.result.value,
+            "succeeded": result.succeeded,
+        })
+    elif cmd == "damage":
+        if len(parts) < 3:
+            print("  Usage: damage <target> <amount>")
+            return
+        result = engine.apply_damage(parts[1], int(parts[2]))
+        dead_str = " (DEATH)" if result["dead"] else ""
+        summary = f"{parts[1]} takes {result['damage']} damage (HP: {result['hp']}/{result['max_hp']}){dead_str}"
+        print(f"  {summary}")
+        _maybe_post(client, game_id, headers, summary, result)
+    elif cmd == "heal":
+        if len(parts) < 3:
+            print("  Usage: heal <target> <amount>")
+            return
+        healed = engine.heal(parts[1], int(parts[2]))
+        print(f"  {parts[1]} healed {healed} HP.")
+        _maybe_post(client, game_id, headers, f"{parts[1]} healed {healed} HP.", {"healed": healed})
+    elif cmd == "set_stat":
+        if len(parts) < 4:
+            print("  Usage: set_stat <character> <stat> <value>")
+            return
+        char = engine.set_stat(parts[1], parts[2], int(parts[3]))
+        print(f"  {parts[1]}'s {parts[2]} set to {parts[3]}.")
+    elif cmd == "set_hp":
+        if len(parts) < 3:
+            print("  Usage: set_hp <character> <hp> [max_hp]")
+            return
+        max_hp = int(parts[3]) if len(parts) > 3 else None
+        char = engine.set_hp(parts[1], int(parts[2]), max_hp=max_hp)
+        print(f"  {parts[1]} HP set to {char.hp}/{char.max_hp}.")
+    elif cmd == "condition":
+        if len(parts) < 3:
+            print("  Usage: condition add|remove <character> <condition>")
+            return
+        sub = parts[1].lower()
+        if sub == "add":
+            if len(parts) < 4:
+                print("  Usage: condition add <character> <condition>")
+                return
+            conditions = engine.add_condition(parts[2], parts[3])
+            print(f"  {parts[2]} conditions: {', '.join(conditions)}")
+        elif sub == "remove":
+            if len(parts) < 4:
+                print("  Usage: condition remove <character> <condition>")
+                return
+            conditions = engine.remove_condition(parts[2], parts[3])
+            print(f"  {parts[2]} conditions: {', '.join(conditions) or '(none)'}")
+        else:
+            print(f"  Unknown: condition {sub}. Use add or remove.")
+    elif cmd == "combat":
+        if len(parts) < 2:
+            print("  Usage: combat start|next|end [names...]")
+            return
+        sub = parts[1].lower()
+        if sub == "start":
+            if len(parts) < 3:
+                print("  Usage: combat start <name1> <name2> ...")
+                return
+            combat = engine.start_combat(parts[2:])
+            order = ", ".join(f"{c.name} ({c.initiative})" for c in combat.combatants)
+            print(f"  Combat started! Order: {order}")
+        elif sub == "next":
+            combat = engine.next_turn()
+            current = combat.current_combatant or "?"
+            print(f"  Round {combat.round} — {current}'s turn.")
+        elif sub == "end":
+            engine.end_combat()
+            print(f"  Combat ended.")
+        else:
+            print(f"  Unknown: combat {sub}. Use start, next, or end.")
+    elif cmd == "inventory":
+        if len(parts) < 4:
+            print("  Usage: inventory add|remove <character> <item>")
+            return
+        sub = parts[1].lower()
+        item = " ".join(parts[3:])
+        if sub == "add":
+            inv = engine.add_inventory(parts[2], item)
+            print(f"  {parts[2]} inventory: {', '.join(inv)}")
+        elif sub == "remove":
+            inv = engine.remove_inventory(parts[2], item)
+            print(f"  {parts[2]} inventory: {', '.join(inv) or '(none)'}")
+        else:
+            print(f"  Unknown: inventory {sub}. Use add or remove.")
+    elif cmd == "note":
+        if len(parts) < 4:
+            print("  Usage: note <character> <key> <value>")
+            return
+        value = " ".join(parts[3:])
+        notes = engine.set_note(parts[1], parts[2], value)
+        print(f"  {parts[1]} notes: {notes}")
+    elif cmd == "save":
+        path = parts[1] if len(parts) > 1 else "engine_state.json"
+        data = engine.save_state_json()
+        Path(path).write_text(data)
+        print(f"  State saved to {path}")
+    elif cmd == "load":
+        if len(parts) < 2:
+            print("  Usage: load <path>")
+            return
+        data = Path(parts[1]).read_text()
+        engine.load_state_json(data)
+        print(f"  State loaded from {parts[1]}")
+    else:
+        print(f"  Unknown command: {cmd}. Type 'help' for usage.")
+
+
 def _handle_preview(parts: list[str], preview: PreviewEngine) -> None:
     if not parts:
         print("  Usage: preview roll <character> <stat> [skill]")
@@ -391,25 +639,46 @@ def main():
     parser.add_argument("--offline", action="store_true", help="Run without server connection")
     parser.add_argument("--load-state", help="Load engine state from a JSON file")
     parser.add_argument("--game-name", default="DM Session", help="Game name (offline mode)")
+    parser.add_argument(
+        "--engine-type", default="core", choices=["core", "generic"],
+        help="Engine type (default: core)",
+    )
+    parser.add_argument(
+        "--engine-config", help="Path to GenericEngineConfig JSON (for generic engine)",
+    )
     args = parser.parse_args()
 
     if not args.offline and not (args.api_key and args.session_token and args.game_id):
         parser.error("Provide --api-key, --session-token, and --game-id, or use --offline")
 
-    # Create engine (always in-memory — state persists via save/load)
-    engine = GameEngine(in_memory=True)
-    engine.init_game(args.game_name)
+    preview = None
+
+    if args.engine_type == "generic":
+        from game.generic.engine import GenericEngine as GEngine
+        from game.generic.models import GenericEngineConfig
+
+        generic_config = None
+        if args.engine_config:
+            generic_config = GenericEngineConfig.model_validate_json(
+                Path(args.engine_config).read_text()
+            )
+        engine = GEngine(in_memory=True)
+        engine.init_game(args.game_name, config=generic_config)
+        if generic_config:
+            print(f"Generic engine config: stats={generic_config.stat_names}, dice={generic_config.dice.dice}")
+    else:
+        engine = GameEngine(in_memory=True)
+        engine.init_game(args.game_name)
+        preview = PreviewEngine(engine)
 
     if args.load_state:
         data = Path(args.load_state).read_text()
         engine.load_state_json(data)
         print(f"Loaded state from {args.load_state}")
 
-    preview = PreviewEngine(engine)
-
     if args.offline:
         print("Running in offline mode (no server connection).")
-        run_interactive(engine, preview, None, None, None)
+        run_interactive(engine, preview, None, None, None, engine_type=args.engine_type)
     else:
         headers = {
             "Authorization": f"Bearer {args.api_key}",
@@ -427,7 +696,8 @@ def main():
                 print(f"Error: Could not connect to {args.server}")
                 sys.exit(1)
 
-            run_interactive(engine, preview, client, args.game_id, headers)
+            run_interactive(engine, preview, client, args.game_id, headers,
+                            engine_type=args.engine_type)
 
     # Offer to save state
     try:

@@ -81,6 +81,37 @@ Post engine roll results as `type: "roll"` messages with metadata:
 ```
 Then narrate the outcome in a separate `type: "narrative"` message.
 """,
+    "generic": """\
+## Engine: Generic (Configurable)
+
+You are running this game with the **generic** engine — a lightweight, \
+configurable state machine. You defined the game's stats, dice, and \
+optional subsystems (health, combat, conditions) at creation time. The \
+engine tracks state; you drive it by submitting actions.
+
+### Stat Checks
+When a player attempts something risky, call for a stat check. The engine \
+uses your configured dice expression and direction (roll-over or roll-under \
+the stat value).
+
+### Health (if enabled)
+Characters have HP. Apply damage and healing through the engine. Whether \
+death occurs at 0 HP depends on your `death_at_zero` setting.
+
+### Combat (if enabled)
+Start combat to roll initiative and track turn order. Call `next_turn` to \
+advance. You resolve actions narratively and call for rolls as needed.
+
+### Conditions (if enabled)
+Apply and remove named conditions to track status effects. If you defined \
+a predefined list, only those conditions are valid; otherwise any string \
+is accepted.
+
+### Posting Results
+Post engine results as `type: "roll"` messages with metadata containing \
+the engine result, then narrate the outcome in a separate `type: "narrative"` \
+message.
+""",
 }
 
 
