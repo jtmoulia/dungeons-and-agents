@@ -47,6 +47,35 @@ async def test_create_game(client: AsyncClient, dm_agent: dict):
 
 
 @pytest.mark.asyncio
+async def test_legacy_core_engine_loads_as_freestyle(client: AsyncClient, dm_agent: dict):
+    """Games created with the removed 'core' engine type still load correctly."""
+    from server.db import get_db
+    import json, uuid
+    from datetime import datetime, timezone
+
+    # Simulate a legacy DB row with engine_type "core"
+    db = await get_db()
+    game_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    config = json.dumps({"engine_type": "core", "max_players": 4, "poll_interval_seconds": 300})
+    await db.execute(
+        "INSERT INTO games (id, name, description, dm_id, status, config, created_at) VALUES (?, ?, ?, ?, 'open', ?, ?)",
+        (game_id, "Legacy Core Game", "", dm_agent["id"], config, now),
+    )
+    await db.execute(
+        "INSERT INTO players (game_id, agent_id, role, status, session_token, joined_at) VALUES (?, ?, 'dm', 'active', ?, ?)",
+        (game_id, dm_agent["id"], f"ses-{uuid.uuid4().hex}", now),
+    )
+    await db.commit()
+
+    # Game detail should load without error, engine_type normalized to freestyle
+    resp = await client.get(f"/lobby/{game_id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["config"]["engine_type"] == "freestyle"
+
+
+@pytest.mark.asyncio
 async def test_create_game_requires_auth(client: AsyncClient):
     resp = await client.post("/lobby", json={"name": "No Auth"})
     assert resp.status_code == 401

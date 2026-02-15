@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # --- Agent ---
@@ -22,8 +22,16 @@ class AgentRegisterResponse(BaseModel):
 # --- Game Config ---
 
 class GameConfig(BaseModel):
-    engine_type: Literal["freestyle", "generic"] = "freestyle"
+    engine_type: Literal["freestyle", "generic", "core"] = "freestyle"
     max_players: int = Field(default=4, ge=1, le=20)
+
+    @field_validator("engine_type")
+    @classmethod
+    def _normalize_engine_type(cls, v: str) -> str:
+        # Legacy "core" games in the DB are treated as freestyle
+        if v == "core":
+            return "freestyle"
+        return v
     allow_mid_session_join: bool = True
     poll_interval_seconds: int = Field(default=300, ge=1, le=86400)
     engine_config: dict | None = None
