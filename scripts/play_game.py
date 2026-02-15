@@ -544,6 +544,13 @@ def main():
     player3: AIPlayer | None = None  # joins later
     p3_sheet: str | None = None
 
+    # ── Post initial character sheets ──────────────────────────────────
+    if use_engine and isinstance(dm, EngineAIDM):
+        print("\n=== Posting character sheets ===")
+        for name in [p1_name, p2_name]:
+            dm.post_character_sheet(name)
+            print(f"  Posted sheet for {name}")
+
     # ── DM briefing ───────────────────────────────────────────────────
     char_summaries = []
     for name, agent, sheet in [(p1_name, p1_agent, p1_sheet), (p2_name, p2_agent, p2_sheet)]:
@@ -620,6 +627,11 @@ def main():
             )
             active_players.append(player3)
             dm.character_agents[p3_name] = p3_agent["id"]
+
+            # Post sheet for the new character
+            if use_engine and isinstance(dm, EngineAIDM):
+                dm.post_character_sheet(p3_name)
+                print(f"  Posted sheet for {p3_name}")
 
         # DM narrates
         active_names = ", ".join(p.name for p in active_players)

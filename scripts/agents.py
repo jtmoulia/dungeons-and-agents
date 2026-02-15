@@ -18,7 +18,7 @@ import anthropic
 MODEL = "claude-sonnet-4-5-20250929"
 DM_MAX_TOKENS = 1024
 ENGINE_DM_MAX_TOKENS = 2048
-PLAYER_MAX_TOKENS = 200
+PLAYER_MAX_TOKENS = 300
 
 
 # ---------------------------------------------------------------------------
@@ -245,12 +245,11 @@ class GameAgent:
             system=self.system_prompt,
             messages=[{"role": "user", "content": user_content}],
         )
+        text = response.content[0].text
         if response.stop_reason == "max_tokens":
-            raise RuntimeError(
-                f"LLM response for {self.name} was truncated at {max_tokens} tokens. "
-                f"Increase max_tokens or shorten the prompt."
-            )
-        return response.content[0].text
+            print(f"  ⚠ {self.name} response truncated at {max_tokens} tokens, using partial response")
+            text += "\n\n[truncated]"
+        return text
 
     def post_message(self, content: str, msg_type: str, to_agents: list[str] | None = None) -> dict:
         """Post a message to the game and add it to the local cache."""
@@ -640,7 +639,7 @@ class EngineAIDM(AIDM):
                     })
 
             if tool_use_results:
-                messages.append({"role": "user", "content": tool_use_results})
+                messages.append({"role": "user", "content": tool_use_results})  # type: ignore[arg-type]
             else:
                 # No tool use and not end_turn — extract text and return
                 text_parts = [b.text for b in assistant_content if b.type == "text"]
@@ -649,15 +648,72 @@ class EngineAIDM(AIDM):
         # Safety: max iterations reached, return whatever text we have
         return "[The Warden pauses, gathering thoughts...]", tool_results
 
+    # Tools that modify character state and should trigger a sheet update
+    _STATE_CHANGING_TOOLS = {"apply_damage", "heal", "add_stress", "panic_check", "combat_action"}
+
+    def _format_sheet_content(self, character_name: str) -> str | None:
+        """Format a character sheet entry from current engine state."""
+        state = self.engine.get_state()
+        char = state.characters.get(character_name)
+        if not char:
+            return None
+        weapons = ", ".join(f"{w.name} ({w.damage})" for w in char.weapons) if char.weapons else "None"
+        armor = f"{char.armor.name} (AP {char.armor.ap})" if char.armor else "None"
+        inventory = ", ".join(char.inventory) if char.inventory else "None"
+        conditions = ", ".join(c.value for c in char.conditions) if char.conditions else "None"
+        stats = char.stats
+        saves = char.saves
+        return (
+            f"**{character_name}** — {char.char_class.value.title()}\n\n"
+            f"HP: {char.hp}/{char.max_hp} | Stress: {char.stress} | "
+            f"Wounds: {char.wounds}/{char.max_wounds}\n"
+            f"Combat: {stats.combat} | Intellect: {stats.intellect} | "
+            f"Strength: {stats.strength} | Speed: {stats.speed}\n"
+            f"Sanity: {saves.sanity} | Fear: {saves.fear} | Body: {saves.body}\n"
+            f"Weapons: {weapons}\n"
+            f"Armor: {armor}\n"
+            f"Inventory: {inventory}\n"
+            f"Conditions: {conditions}"
+        )
+
+    def post_character_sheet(self, character_name: str) -> None:
+        """Post a sheet message with the character's current stats."""
+        content = self._format_sheet_content(character_name)
+        if content:
+            body: dict = {
+                "type": "sheet",
+                "content": content,
+                "metadata": {"key": "stats", "character": character_name},
+            }
+            resp = self.http.post(
+                f"/games/{self.game_id}/messages",
+                json=body,
+                headers=self._headers(),
+            )
+            resp.raise_for_status()
+            posted = resp.json()
+            self._message_cache.append(posted)
+            self._last_msg_id = posted["id"]
+
     def narrate(self, instruction: str) -> dict:
         """Generate narration with engine tools, post roll messages, whispers, then narration."""
         raw, tool_results = self.generate_with_tools(instruction)
 
-        # Post each tool result as a "roll" message
+        # Post each tool result as a "roll" message, and update sheets for state changes
+        affected_characters: set[str] = set()
         for tr in tool_results:
             if "error" not in tr["result"]:
                 msg_text = self._format_tool_result_message(tr["tool"], tr["result"])
                 self.post_message(msg_text, "roll")
+                # Track characters affected by state-changing tools
+                if tr["tool"] in self._STATE_CHANGING_TOOLS:
+                    char_name = tr["result"].get("character") or tr["result"].get("actor")
+                    if char_name:
+                        affected_characters.add(char_name)
+
+        # Post updated sheets for any characters whose state changed
+        for char_name in affected_characters:
+            self.post_character_sheet(char_name)
 
         parsed = self._parse_dm_response(raw)
 
