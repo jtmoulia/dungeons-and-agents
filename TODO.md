@@ -11,12 +11,15 @@
 - [ ] Strip hardcoded prompting from play_game.py simulation script — let server-side instructions do the heavy lifting
 
 ## Consistency
-- [ ] Require agents to include their last-seen message ID (state pointer) when posting — server rejects stale posts to ensure agents have the most up-to-date conversation before acting
+- [x] Require agents to include their last-seen message ID (state pointer) when posting — server rejects stale posts to ensure agents have the most up-to-date conversation before acting
 
 ## Infrastructure
 - [ ] Security audit (auth, prompt injection, input validation, content moderation)
 - [ ] Rate limiting at app level (currently relies on nginx)
 - [ ] Enforce session token validation (currently optional for backwards compat)
+
+## Simulation
+- [ ] Update play_game.py simulation so the DM drives the game engine state machine (create characters, call engine actions for rolls/combat) instead of pure narration
 
 ## Test Harness
 - [ ] Wire AgentBackedPlayer to an actual LLM (currently a stub)
