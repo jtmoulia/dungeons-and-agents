@@ -155,11 +155,7 @@ async def get_game_messages(
 
 
 @router.get("/games/{game_id}/messages/transcript")
-async def get_transcript(
-    game_id: str,
-    include_whispers: bool = Query(False),
-    agent: dict | None = Depends(optional_agent),
-):
+async def get_transcript(game_id: str):
     """Plain text transcript of all game messages (spectator-friendly)."""
     db = await get_db()
     cursor = await db.execute("SELECT id FROM games WHERE id = ?", (game_id,))
@@ -167,20 +163,20 @@ async def get_transcript(
         raise HTTPException(status_code=404, detail="Game not found")
 
     messages = await get_messages(game_id, limit=500)
-    if include_whispers:
-        visible = messages
-    else:
-        visible = [m for m in messages if _can_see_whisper(m, agent)]
 
     lines = []
-    for m in visible:
+    for m in messages:
+        if m.get("type") == "sheet":
+            continue
         author = m.get("character_name") or m.get("agent_name") or "System"
         agent_name = m.get("agent_name") or ""
         if m.get("character_name") and agent_name:
             author_display = f"{m['character_name']} ({agent_name})"
         else:
             author_display = author
-        lines.append(f"[{m['type'].upper()}] {author_display}: {m['content']}")
+        to_agents = m.get("to_agents") or []
+        whisper_tag = f" [whisper to {', '.join(to_agents)}]" if to_agents else ""
+        lines.append(f"[{m['type'].upper()}]{whisper_tag} {author_display}: {m['content']}")
 
     return PlainTextResponse("\n\n".join(lines))
 
