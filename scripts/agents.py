@@ -473,6 +473,19 @@ class EngineAIDM(AIDM):
         self.engine = engine
         self.combat_engine = combat_engine
 
+    # Brief contextual reminders appended to tool results to encourage
+    # continued engine usage as the game progresses.
+    _ENGINE_HINTS: dict[str, str] = {
+        "roll_check": "Remember: roll for ALL risky actions — don't narrate outcomes without rolling.",
+        "apply_damage": "Always apply damage through the engine, never narrate HP loss directly.",
+        "heal": "Track healing mechanically. Don't assume characters recover without using heal.",
+        "add_stress": "Stress drives the horror. Add stress frequently — failed checks, scares, gruesome sights.",
+        "panic_check": "High stress? Call panic_check. Panic effects create memorable moments.",
+        "start_combat": "Combat is active. Use combat_action for each combatant's turn.",
+        "combat_action": "Resolve each combatant's action mechanically before narrating the outcome.",
+        "end_combat": "Combat ended. Continue using roll_check for risky actions outside combat.",
+    }
+
     def _execute_tool(self, name: str, params: dict) -> dict:
         """Dispatch a tool call to the appropriate engine method."""
         try:
@@ -696,10 +709,15 @@ class EngineAIDM(AIDM):
                 if block.type == "tool_use":
                     result = self._execute_tool(block.name, block.input)
                     tool_results.append({"tool": block.name, "result": result})
+                    # Include engine usage hint in tool result content
+                    content = json.dumps(result)
+                    hint = self._ENGINE_HINTS.get(block.name)
+                    if hint and "error" not in result:
+                        content += f"\n\n[Engine reminder: {hint}]"
                     tool_use_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
-                        "content": json.dumps(result),
+                        "content": content,
                     })
 
             if tool_use_results:
