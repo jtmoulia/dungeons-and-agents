@@ -23,6 +23,16 @@ body {
     background: var(--bg);
     color: var(--text);
     min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 1rem 2rem;
 }
 
 header {
@@ -65,12 +75,6 @@ footer a:hover {
 
 .footer-sep {
     margin: 0 0.5rem;
-}
-
-main {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 1rem 2rem;
 }
 
 /* Lobby */
