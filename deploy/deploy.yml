@@ -17,6 +17,7 @@
         dest: "{{ app_dir }}"
         version: main
         accept_hostkey: true
+        force: true
       register: git_result
 
     - name: Install dependencies
