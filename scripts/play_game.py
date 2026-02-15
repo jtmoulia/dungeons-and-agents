@@ -19,9 +19,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import uuid
 from pathlib import Path
+
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 import anthropic
 import httpx
@@ -58,14 +60,24 @@ Delacroix rambles when scared. ARIA is monotone and procedural. Tran is terse an
 - **Selective addressing**: Don't address every player every round. Focus on 1-2 characters \
 per narration to keep the pace tight. Rotate focus across rounds.
 
-## Response Tag (REQUIRED)
+## Response Format (REQUIRED)
 
-At the very end of every narration, add a tag listing which characters should respond:
+You MUST respond with a JSON object — no other text. The object has two fields:
+- "narration": your narrative text (string)
+- "respond": list of character names who should reply (1-2 names, not everyone)
+
+Example:
+```json
+{{"narration": "The emergency lighting casts red shadows across the corridor. Something scrapes against the hull plating above you. Reyes, your console is flashing a containment warning.", "respond": ["Reyes"]}}
 ```
-[RESPOND: Reyes, Okafor]
-```
-Only list characters who were directly addressed or who have a clear reason to act — \
-usually 1-2 characters, not everyone. This is crucial for pacing.
+
+Rules for the "respond" list:
+- ONLY include characters you directly addressed BY NAME or gave something specific to react to.
+- Prefer 1-2 characters per round for tight pacing.
+- You MAY list all players for key moments (new arrivals, major choices, climactic scenes).
+- If your narration only addresses one character, the respond list MUST contain only that character.
+- Players NOT in the respond list will not act this round. Be deliberate about who you include.
+- Rotate focus across rounds so everyone gets spotlight time.
 
 ## Rules
 
@@ -107,6 +119,8 @@ You are **{character_name}** aboard the MSV Koronis in a sci-fi horror RPG.
 - React to what JUST happened. Don't narrate ahead or write inner monologue.
 - Have opinions. Disagree with people. Make snap decisions.
 - Never reference game mechanics, APIs, or systems. Stay in the fiction.
+- If the DM's narration doesn't address you or give you anything to react to, \
+respond with exactly `[PASS]` and nothing else. Don't force a response.
 """
 
 
@@ -336,6 +350,18 @@ def main():
     active_players: list[AIPlayer] = [reyes, okafor]
     tran: AIPlayer | None = None  # joins later
 
+    # ── Character introductions ───────────────────────────────────────
+    INTRO_PROMPT = (
+        "Briefly introduce yourself in 1-2 sentences. Describe how you look "
+        "right now — what you're wearing, what you're carrying, your demeanor. "
+        "No backstory, just a quick visual snapshot as others would see you."
+    )
+    print("\n=== Character introductions ===")
+    for player in active_players:
+        print(f"  [{player.name} introducing...]", flush=True)
+        player.take_turn(INTRO_PROMPT)
+        print(f"  [{player.name} done]", flush=True)
+
     # ── Game loop ─────────────────────────────────────────────────────
     pacing = get_pacing_hints(args.rounds)
     carol_join_round = min(3, args.rounds - 2)  # join after round 3 (or earlier for short games)
@@ -359,23 +385,39 @@ def main():
                 game_id=game_id,
             )
             active_players.append(tran)
+            print(f"  [Tran introducing...]", flush=True)
+            tran.take_turn(INTRO_PROMPT)
+            print(f"  [Tran done]", flush=True)
 
         # DM narrates
         hint = pacing[round_num]
         active_names = ", ".join(p.name for p in active_players)
-        full_hint = f"{hint}\n\nActive players: {active_names}. End with [RESPOND: name1, name2] to indicate who should reply."
+        full_hint = f"{hint}\n\nActive players: {active_names}. Remember: respond with JSON containing \"narration\" and \"respond\" fields."
         print(f"\n  [Warden narrating...]", flush=True)
         narration = dm.narrate(full_hint)
         print(f"  [Warden done]", flush=True)
 
-        # Parse [RESPOND: ...] tag from DM's raw output to decide who acts
-        narration_raw = narration.get("_raw", narration.get("content", ""))
-        respond_match = re.search(r'\[RESPOND:\s*([^\]]+)\]', narration_raw, re.IGNORECASE)
-        if respond_match:
-            tagged = {name.strip().lower() for name in respond_match.group(1).split(",")}
-            responders = [p for p in active_players if p.name.lower() in tagged]
+        # Determine responders: filter DM's respond list by who's actually
+        # mentioned in the narration text to prevent over-broad responses.
+        narration_text = narration.get("content", "").lower()
+        respond_names = narration.get("_respond", [])
+        if respond_names:
+            tagged = {name.strip().lower() for name in respond_names}
+            # Only include players who are both in the respond list AND
+            # mentioned by name in the narration itself.
+            mentioned = {p.name for p in active_players if p.name.lower() in narration_text}
+            responders = [p for p in active_players if p.name.lower() in tagged and p.name in mentioned]
+            if not responders:
+                # Fallback: trust the DM's list if name-check filtered everyone
+                responders = [p for p in active_players if p.name.lower() in tagged]
+            if not responders:
+                print(f"  [WARN: respond names {respond_names} matched no active players, falling back to all]", flush=True)
+                responders = active_players
+            else:
+                print(f"  [Responding: {', '.join(p.name for p in responders)}]", flush=True)
         else:
             # Fallback: everyone responds
+            print(f"  [WARN: no respond list from DM, all players respond]", flush=True)
             responders = active_players
 
         for player in responders:

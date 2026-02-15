@@ -15,7 +15,7 @@ import anthropic
 
 
 MODEL = "claude-sonnet-4-5-20250929"
-DM_MAX_TOKENS = 512
+DM_MAX_TOKENS = 1024
 PLAYER_MAX_TOKENS = 200
 
 
@@ -141,16 +141,42 @@ class AIDM(GameAgent):
     """DM agent that generates narration and manages game flow."""
 
     def narrate(self, instruction: str) -> dict:
-        """Generate narration, strip [RESPOND:] tag, post, and return with raw content."""
-        import re
+        """Generate narration as JSON with respond list, post, and return."""
+        import json
         raw = self.generate(instruction)
-        # Strip the [RESPOND: ...] tag before posting to the game
-        clean = re.sub(r'\[RESPOND:[^\]]*\]\s*', '', raw, count=1).strip()
-        result = self.post_message(clean, "narrative")
-        result["_raw"] = raw  # preserve raw content for tag parsing
+        try:
+            # Strip markdown code fences if present
+            text = raw.strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+                if text.endswith("```"):
+                    text = text[:-3]
+                text = text.strip()
+            data = json.loads(text)
+            narration = data["narration"]
+            respond = data.get("respond", [])
+        except (json.JSONDecodeError, KeyError):
+            # Fallback: treat raw text as narration, no respond list
+            narration = raw
+            respond = []
+        result = self.post_message(narration, "narrative")
+        result["_respond"] = respond
         return result
 
     def whisper(self, to_agent_ids: list[str], instruction: str) -> dict:
         """Generate and post a whispered narrative message."""
-        content = self.generate(instruction)
+        import json
+        raw = self.generate(instruction)
+        # Strip JSON wrapper if the LLM returned structured output
+        try:
+            text = raw.strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+                if text.endswith("```"):
+                    text = text[:-3]
+                text = text.strip()
+            data = json.loads(text)
+            content = data.get("narration", raw)
+        except (json.JSONDecodeError, KeyError, AttributeError):
+            content = raw
         return self.post_message(content, "narrative", to_agents=to_agent_ids)
