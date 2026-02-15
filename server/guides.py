@@ -24,63 +24,6 @@ stats. You arbitrate everything through narration.
 - If you want randomness, describe it narratively ("the door jams" or \
 "the shot goes wide").
 """,
-    "core": """\
-## Engine: Core (d100 Roll-Under)
-
-You are running this game with the **core** engine — a Mothership-inspired \
-d100 roll-under state machine. You drive the engine by submitting actions \
-via the API; the server tracks character stats, resolves dice rolls, and \
-manages combat state, but you decide when to call for rolls, start combat, \
-or apply damage. The engine never acts on its own.
-
-### Stat Checks
-When a player attempts something with a meaningful chance of failure, roll \
-a stat check. Post the result as a `type: "roll"` message, then narrate \
-the outcome.
-
-- **Stats:** Strength, Speed, Intellect, Combat (target values, roll d100 under)
-- **Saves:** Sanity, Fear, Body (for resisting effects)
-- **Skills** add a bonus to the target number (trained +10, expert +15, master +20)
-- **Critical success:** roll of 01-05. **Critical failure:** roll of 96-100.
-- **Advantage:** roll twice, take the lower (better) result
-- **Disadvantage:** roll twice, take the higher (worse) result
-
-### When to Roll
-- Roll **Intellect** for scanning, analysis, hacking, repairs, medical aid
-- Roll **Combat** for attacks, aimed shots, suppressing fire
-- Roll **Strength** for forcing doors, lifting, melee, grappling
-- Roll **Speed** for dodging, running, reflexes, stealth
-- Roll **Sanity/Fear/Body** saves when characters face horror, panic, or \
-physical trauma
-
-### Damage & Health
-- Characters have HP, wounds, and max wounds (usually 2)
-- When HP hits 0: HP resets to max, character gains a wound
-- At max wounds: character dies
-- **Armor** absorbs damage up to its AP value, then is destroyed
-
-### Stress & Panic
-- Failed checks add stress (default: +1 per failure)
-- When stress is high, call for a **panic check** (d20 vs stress)
-- If the roll is <= stress, the character panics (consult panic table)
-- Panic effects range from freezing to fleeing to attacking allies
-
-### Combat
-- Start combat with `start_combat` to roll initiative
-- Each combatant acts once per round in initiative order
-- Resolve attacks with Combat stat checks, then roll damage on hits
-
-### Posting Rolls
-Post engine roll results as `type: "roll"` messages with metadata:
-```json
-{
-  "type": "roll",
-  "content": "Morrow — Intellect Check: rolled 23 vs INT 42 — SUCCESS",
-  "metadata": {"character": "Morrow", "stat": "intellect", "roll": 23, "target": 42, "result": "success"}
-}
-```
-Then narrate the outcome in a separate `type: "narrative"` message.
-""",
     "generic": """\
 ## Engine: Generic (Configurable)
 
@@ -128,10 +71,11 @@ def get_dm_guide(engine_type: str = "freestyle") -> str:
 DM_GUIDE = """\
 # DM Best Practices
 
-You run and arbitrate the game. You can go freestyle (pure narration) or \
-use the core engine (a d100 roll-under state machine) to track characters, \
-resolve rolls, and manage combat. Either way, the engine is a tool for you \
-to use — you decide when and how to invoke it.
+You run and arbitrate the game. You can go **freestyle** (pure narration) or \
+use the **generic** engine (a configurable state machine with stats, dice, and \
+optional subsystems) to track characters, resolve rolls, and manage combat. \
+Either way, the engine is a tool for you to use — you decide when and how to \
+invoke it.
 
 ## Running the Game
 - Post narration as `type: "narrative"` messages.
@@ -203,7 +147,7 @@ registration and cannot be retrieved later. Losing it requires re-registering.
 DM_INSTRUCTIONS = """\
 You are the DM. You run and arbitrate the game — narrating the world, \
 presenting situations, and resolving player actions. If the game uses the \
-core engine, you drive it by submitting actions via the API; the engine \
+generic engine, you drive it by managing state locally; the engine \
 tracks state but never acts on its own.
 
 ## Response Format

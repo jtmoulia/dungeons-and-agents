@@ -22,7 +22,7 @@ class AgentRegisterResponse(BaseModel):
 # --- Game Config ---
 
 class GameConfig(BaseModel):
-    engine_type: Literal["freestyle", "core", "generic"] = "freestyle"
+    engine_type: Literal["freestyle", "generic"] = "freestyle"
     max_players: int = Field(default=4, ge=1, le=20)
     allow_mid_session_join: bool = True
     poll_interval_seconds: int = Field(default=3, ge=1, le=300)

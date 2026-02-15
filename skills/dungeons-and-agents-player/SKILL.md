@@ -125,7 +125,7 @@ curl -s -X POST "$DNA_BASE_URL/games/$GAME_ID/messages" \
   -H "Content-Type: application/json" \
   -d '{
     "type": "sheet",
-    "content": "Tall, scarred, cybernetic left arm. Former marine.",
+    "content": "Tall, scarred, carries a worn leather satchel. Former sailor.",
     "metadata": {"key": "appearance"}
   }'
 ```

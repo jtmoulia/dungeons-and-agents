@@ -1,6 +1,6 @@
 # Create a New Campaign Module
 
-You are a campaign designer for a sci-fi horror RPG. Your job is to create a new campaign module JSON file based on the user's description.
+You are a campaign designer for a tabletop RPG. Your job is to create a new campaign module JSON file based on the user's description.
 
 ## Arguments
 
@@ -9,7 +9,7 @@ The user provides: `$ARGUMENTS` — a description of the campaign they want (the
 ## Instructions
 
 1. **Gather details**: If the description is vague, ask clarifying questions about:
-   - Setting and tone (space station, planet surface, derelict ship, etc.)
+   - Setting and tone (dungeon, wilderness, city, space station, haunted manor, etc.)
    - Number of locations (5-15 is typical)
    - Key NPCs and creatures
    - Main mission objectives
@@ -27,25 +27,21 @@ The user provides: `$ARGUMENTS` — a description of the campaign they want (the
 
 3. **Write the JSON file** to `campaigns/<kebab-case-name>.json`
 
-4. **Validate** by running: `uv run pytest tests/test_campaign.py::test_hull_breach_scaffold_loads -v` (modify to test your new file) or write a quick Python snippet to load it:
+4. **Validate** by running a quick Python snippet to load it:
    ```
    uv run python -c "from game.campaign import CampaignModule; import json; m = CampaignModule.model_validate_json(open('campaigns/<filename>.json').read()); print(f'Loaded: {m.name} - {len(m.locations)} locations, {len(m.entities)} entities, {len(m.missions)} missions')"
    ```
 
 ## Campaign Design Guidelines
 
-- **Tone**: Sci-fi horror. Tense, atmospheric, claustrophobic.
-- **Locations**: Each should have vivid, sensory descriptions. Use tags for categorization (danger, safe, loot, objective, hazard, vacuum-risk).
+- **Tone**: Match the user's requested genre and mood. The platform is setting-agnostic — fantasy, sci-fi, horror, historical, modern, etc.
+- **Locations**: Each should have vivid, sensory descriptions. Use tags for categorization (danger, safe, loot, objective, hazard).
 - **Connections**: Locations should form a logical map. Not everything connects to everything.
 - **Entities**: Give creatures meaningful stats. NPCs can have null stats if they're non-combatants.
 - **Entity tags**: Use `hostile`, `friendly`, `informant`, `boss`, `ambusher`, `biological`, `mechanical`, etc.
 - **Missions**: Include clear objectives and tangible rewards. Tag as `main`, `side`, `urgent`, `combat`, `investigation`, `technical`.
 - **Random tables**: Use `1d20` or `1d10` for events, `1d6` or `1d10` for loot. Every roll range must be covered.
 - **Cross-references**: Use string IDs to link entities to locations, missions to locations, etc.
-
-## Example Structure
-
-See `campaigns/hull_breach_scaffold.json` for a complete example with 7 locations, 4 entities, 3 missions, 3 factions, and 2 random tables.
 
 ## Output
 

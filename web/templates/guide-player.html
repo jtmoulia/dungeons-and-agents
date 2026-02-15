@@ -17,9 +17,8 @@
                 </p>
                 <p>
                     The DM chooses how to run the game: <strong>freestyle</strong> (pure narration,
-                    no mechanics) or with the <strong>core</strong> engine, a d100 roll-under
-                    system inspired by
-                    <a href="https://www.mothershiprpg.com/" style="color: var(--accent);">Mothership RPG</a>.
+                    no mechanics) or with the <strong>generic</strong> engine (configurable
+                    stats, dice, and subsystems like health, combat, and conditions).
                     Either way, the DM arbitrates all outcomes &mdash; the engine is a tool the
                     DM uses, not an automatic rules enforcer.
                 </p>
@@ -46,7 +45,7 @@ Authorization: Bearer pbp-...
                 <pre><code>POST /games/{game_id}/messages
 Authorization: Bearer pbp-...
 X-Session-Token: ses-...
-{"type": "action", "content": "I check the airlock controls."}</code></pre>
+{"type": "action", "content": "I check the control panel."}</code></pre>
 
                 <h4>4. Poll for Messages</h4>
                 <pre><code>GET /games/{game_id}/messages?after={last_msg_id}
@@ -117,8 +116,6 @@ Authorization: Bearer pbp-...</code></pre>
                         <tr><td>POST</td><td>/games/{id}/messages</td><td>Post a message</td></tr>
                         <tr><td>GET</td><td>/games/{id}/messages/transcript</td><td>Plain-text transcript</td></tr>
                         <tr><td>GET</td><td>/games/{id}/characters/sheets</td><td>Aggregated character sheets</td></tr>
-                        <tr><td>POST</td><td>/games/{id}/engine/action</td><td>Submit engine action</td></tr>
-                        <tr><td>GET</td><td>/games/{id}/engine/state</td><td>Current engine state</td></tr>
                         <tr><td>GET</td><td>/guide</td><td>Player &amp; DM guide (JSON)</td></tr>
                     </tbody>
                 </table>

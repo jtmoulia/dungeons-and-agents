@@ -10,19 +10,10 @@ Usage:
     # Or offline (no server connection):
     uv run python -m server.dm_engine --offline
 
-    # Generic engine:
-    uv run python -m server.dm_engine --offline --engine-type generic \
-        --engine-config path/to/config.json
+    # With a config file:
+    uv run python -m server.dm_engine --offline --engine-config path/to/config.json
 
-Commands (interactive — core engine):
-    roll <character> <stat> [skill]       - Roll a stat check
-    damage <target> <amount>              - Apply damage
-    heal <target> <amount>                - Heal a character
-    panic <character>                     - Panic check
-    stress <character> <amount>           - Add/remove stress
-    create <name> [class]                 - Create a character
-
-Commands (interactive — generic engine):
+Commands:
     roll <character> <stat> [--adv|--dis] [+/-mod] - Roll a stat check
     damage <target> <amount>              - Apply damage
     heal <target> <amount>                - Heal a character
@@ -37,8 +28,6 @@ Commands (interactive — generic engine):
     inventory add <character> <item>      - Add inventory item
     inventory remove <character> <item>   - Remove inventory item
     note <character> <key> <value>        - Set a character note
-
-Common commands:
     state                                 - Show engine state
     characters                            - List characters
     char <name>                           - Show character details
@@ -48,28 +37,15 @@ Common commands:
     load <path>                           - Load engine state from file
     help                                  - Show commands
     quit                                  - Exit
-
-Core engine only:
-    preview roll <character> <stat> [skill] - Dry-run a roll
-    preview damage <character> <amount>     - Dry-run damage
-    odds <character> <stat> [skill]         - Show success probabilities
-    what-if <dice> <threshold> [effect]     - Conditional chain
-    simulate <dice> <threshold> <effect>    - Monte Carlo simulation
-    snapshot save|restore|list|delete [name]
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 import httpx
-
-from game.engine import GameEngine
-from game.models import CharacterClass
-from game.preview import PreviewEngine
 
 
 def post_result(
@@ -93,29 +69,7 @@ def post_result(
 
 
 def _format_character(char) -> str:
-    """Format a core engine character for display."""
-    lines = [
-        f"  {char.name} — {char.char_class.value}",
-        f"    HP: {char.hp}/{char.max_hp} | Wounds: {char.wounds}/{char.max_wounds} | Stress: {char.stress}",
-        f"    STR: {char.stats.strength} SPD: {char.stats.speed} INT: {char.stats.intellect} CMB: {char.stats.combat}",
-        f"    Saves — SAN: {char.saves.sanity} FEAR: {char.saves.fear} BODY: {char.saves.body}",
-    ]
-    if char.armor.ap > 0:
-        lines.append(f"    Armor: {char.armor.name} (AP {char.armor.ap})")
-    if char.skills:
-        skills_str = ", ".join(f"{k} ({v.value})" for k, v in char.skills.items())
-        lines.append(f"    Skills: {skills_str}")
-    if char.conditions:
-        lines.append(f"    Conditions: {', '.join(c.value for c in char.conditions)}")
-    if char.inventory:
-        lines.append(f"    Inventory: {', '.join(char.inventory)}")
-    if not char.alive:
-        lines.append(f"    ** DEAD **")
-    return "\n".join(lines)
-
-
-def _format_generic_character(char) -> str:
-    """Format a generic engine character for display."""
+    """Format a character for display."""
     lines = [f"  {char.name}"]
     if char.stats:
         stats_str = " | ".join(f"{k}: {v}" for k, v in char.stats.items())
@@ -136,15 +90,12 @@ def _format_generic_character(char) -> str:
 
 def run_interactive(
     engine,
-    preview,
     client: httpx.Client | None,
     game_id: str | None,
     headers: dict | None,
-    engine_type: str = "core",
-    fmt_char=None,
 ) -> None:
     mode = "online" if client else "offline"
-    print(f"\nDM Engine [{engine_type}] ({mode}) — type 'help' for commands\n")
+    print(f"\nDM Engine ({mode}) — type 'help' for commands\n")
 
     while True:
         try:
@@ -160,208 +111,17 @@ def run_interactive(
         cmd = parts[0].lower()
 
         try:
-            if engine_type == "generic":
-                _handle_generic_command(cmd, parts, engine, client, game_id, headers, fmt_char)
-            else:
-                _handle_command(cmd, parts, engine, preview, client, game_id, headers)
+            _handle_command(cmd, parts, engine, client, game_id, headers)
         except Exception as e:
             print(f"  Error: {e}")
 
 
 def _handle_command(
     cmd: str, parts: list[str],
-    engine: GameEngine, preview: PreviewEngine,
-    client: httpx.Client | None, game_id: str | None, headers: dict | None,
-) -> None:
-    if cmd == "quit":
-        raise SystemExit(0)
-    elif cmd == "help":
-        print(__doc__)
-    elif cmd == "state":
-        state = engine.get_state()
-        print(f"  Game: {state.name}")
-        print(f"  Scene: {state.scene or '(none)'}")
-        print(f"  Characters: {len(state.characters)}")
-        print(f"  Combat: {'active' if state.combat.active else 'inactive'}")
-    elif cmd == "characters":
-        state = engine.get_state()
-        if not state.characters:
-            print("  No characters.")
-        for char in state.characters.values():
-            print(_format_character(char))
-    elif cmd == "char":
-        if len(parts) < 2:
-            print("  Usage: char <name>")
-            return
-        char = engine.get_character(parts[1])
-        print(_format_character(char))
-    elif cmd == "scene":
-        if len(parts) < 2:
-            state = engine.get_state()
-            print(f"  Scene: {state.scene or '(none)'}")
-            return
-        desc = " ".join(parts[1:])
-        engine.set_scene(desc)
-        print(f"  Scene set.")
-    elif cmd == "log":
-        count = int(parts[1]) if len(parts) > 1 else 10
-        entries = engine.get_log(count)
-        for e in entries:
-            print(f"  [{e.category}] {e.message}")
-        if not entries:
-            print("  No log entries.")
-    elif cmd == "create":
-        if len(parts) < 2:
-            print("  Usage: create <name> [class]")
-            print(f"  Classes: {', '.join(c.value for c in CharacterClass)}")
-            return
-        name = parts[1]
-        cls_name = parts[2] if len(parts) > 2 else "marine"
-        try:
-            char_class = CharacterClass(cls_name.lower())
-        except ValueError:
-            print(f"  Unknown class '{cls_name}'. Valid: {', '.join(c.value for c in CharacterClass)}")
-            return
-        char = engine.create_character(name, char_class)
-        print(_format_character(char))
-
-    # --- Engine actions (post to server if connected) ---
-    elif cmd == "roll":
-        if len(parts) < 3:
-            print("  Usage: roll <character> <stat> [skill] [--adv|--dis]")
-            return
-        char_name = parts[1]
-        stat = parts[2]
-        skill = None
-        advantage = "--adv" in parts
-        disadvantage = "--dis" in parts
-        remaining = [p for p in parts[3:] if p not in ("--adv", "--dis")]
-        if remaining:
-            skill = remaining[0]
-        result = engine.roll_check(char_name, stat, skill=skill,
-                                   advantage=advantage, disadvantage=disadvantage)
-        summary = (
-            f"{char_name} rolls {stat} (target {result.target}): "
-            f"{result.roll} -> {result.result.value}"
-        )
-        if skill:
-            summary += f" [skill: {skill}]"
-        if len(result.all_rolls) > 1:
-            summary += f" [rolls: {result.all_rolls}]"
-        print(f"  {summary}")
-        _maybe_post(client, game_id, headers, summary, {
-            "roll": result.roll, "target": result.target,
-            "result": result.result.value, "doubles": result.doubles,
-            "succeeded": result.succeeded,
-        })
-    elif cmd == "damage":
-        if len(parts) < 3:
-            print("  Usage: damage <target> <amount>")
-            return
-        result = engine.apply_damage(parts[1], int(parts[2]))
-        summary = (
-            f"{parts[1]} takes {result['damage_taken']} damage"
-            + (f" (wound!)" if result["wound"] else "")
-            + (f" (DEATH)" if result["dead"] else "")
-        )
-        print(f"  {summary}")
-        _maybe_post(client, game_id, headers, summary, result)
-    elif cmd == "heal":
-        if len(parts) < 3:
-            print("  Usage: heal <target> <amount>")
-            return
-        healed = engine.heal(parts[1], int(parts[2]))
-        print(f"  {parts[1]} healed {healed} HP.")
-        _maybe_post(client, game_id, headers, f"{parts[1]} healed {healed} HP.", {"healed": healed})
-    elif cmd == "panic":
-        if len(parts) < 2:
-            print("  Usage: panic <character>")
-            return
-        result = engine.panic_check(parts[1])
-        if result["panicked"]:
-            summary = f"{parts[1]} panics! (rolled {result['roll']} vs stress {result['stress']}) — {result['effect']}"
-        else:
-            summary = f"{parts[1]} keeps it together (rolled {result['roll']} vs stress {result['stress']})."
-        print(f"  {summary}")
-        _maybe_post(client, game_id, headers, summary, result)
-    elif cmd == "stress":
-        if len(parts) < 3:
-            print("  Usage: stress <character> <amount> (negative to reduce)")
-            return
-        new_stress = engine.add_stress(parts[1], int(parts[2]))
-        print(f"  {parts[1]} stress is now {new_stress}.")
-
-    # --- Preview / what-if commands ---
-    elif cmd == "preview":
-        _handle_preview(parts[1:], preview)
-    elif cmd == "odds":
-        if len(parts) < 3:
-            print("  Usage: odds <character> <stat> [skill]")
-            return
-        skill = parts[3] if len(parts) > 3 else None
-        odds = preview.check_odds(parts[1], parts[2], skill=skill)
-        print(f"  {parts[1]} {parts[2]} check (target {odds.target}, modifier {odds.modifier:+d}, effective {odds.effective_target}):")
-        print(f"    Critical success: {odds.critical_success_pct:.0f}%")
-        print(f"    Success:          {odds.success_pct:.0f}%")
-        print(f"    Total pass:       {odds.critical_success_pct + odds.success_pct:.0f}%")
-        print(f"    Failure:          {odds.failure_pct:.0f}%")
-        print(f"    Critical failure: {odds.critical_failure_pct:.0f}%")
-    elif cmd == "what-if":
-        if len(parts) < 3:
-            print("  Usage: what-if <dice> <threshold> [effect_dice]")
-            print("  Example: what-if 1d20 15 1d10")
-            return
-        dice_expr = parts[1]
-        threshold = int(parts[2])
-        effect_expr = parts[3] if len(parts) > 3 else None
-        result = preview.resolve_conditional(dice_expr, threshold, on_success_expr=effect_expr)
-        print(f"  {result.description}")
-        for k, v in result.details.items():
-            print(f"    {k}: {v}")
-    elif cmd == "simulate":
-        if len(parts) < 4:
-            print("  Usage: simulate <dice> <threshold> <effect_dice> [trials]")
-            print("  Example: simulate 1d20 15 1d10 10000")
-            return
-        trials = int(parts[4]) if len(parts) > 4 else 10000
-        result = preview.simulate_conditional(parts[1], int(parts[2]), parts[3], trials=trials)
-        print(f"  Simulation ({result['trials']} trials):")
-        print(f"    Hit rate:              {result['hit_rate_pct']}%")
-        print(f"    Avg damage on hit:     {result['avg_damage_on_hit']}")
-        print(f"    Expected damage/roll:  {result['expected_damage_per_roll']}")
-        print(f"    Trigger range:         {result['trigger_range']} (need {result['threshold']}+)")
-        print(f"    Effect range:          {result['effect_range']} (avg {result['effect_avg']})")
-
-    # --- Snapshot commands ---
-    elif cmd == "snapshot":
-        _handle_snapshot(parts[1:], preview)
-
-    # --- Save/Load ---
-    elif cmd == "save":
-        path = parts[1] if len(parts) > 1 else "engine_state.json"
-        data = engine.save_state_json()
-        Path(path).write_text(data)
-        print(f"  State saved to {path}")
-    elif cmd == "load":
-        if len(parts) < 2:
-            print("  Usage: load <path>")
-            return
-        data = Path(parts[1]).read_text()
-        engine.load_state_json(data)
-        print(f"  State loaded from {parts[1]}")
-    else:
-        print(f"  Unknown command: {cmd}. Type 'help' for usage.")
-
-
-def _handle_generic_command(
-    cmd: str, parts: list[str],
     engine, client: httpx.Client | None,
     game_id: str | None, headers: dict | None,
-    fmt_char=None,
 ) -> None:
     """Handle commands for the generic engine."""
-    fmt = fmt_char or _format_generic_character
-
     if cmd == "quit":
         raise SystemExit(0)
     elif cmd == "help":
@@ -379,13 +139,13 @@ def _handle_generic_command(
         if not state.characters:
             print("  No characters.")
         for char in state.characters.values():
-            print(fmt(char))
+            print(_format_character(char))
     elif cmd == "char":
         if len(parts) < 2:
             print("  Usage: char <name>")
             return
         char = engine.get_character(parts[1])
-        print(fmt(char))
+        print(_format_character(char))
     elif cmd == "scene":
         if len(parts) < 2:
             state = engine.get_state()
@@ -420,7 +180,7 @@ def _handle_generic_command(
                 else:
                     char_stats[k] = int(v)
         char = engine.create_character(name, stats=char_stats or None, hp=hp)
-        print(fmt(char))
+        print(_format_character(char))
     elif cmd == "roll":
         if len(parts) < 3:
             print("  Usage: roll <character> <stat> [--adv|--dis] [+/-mod]")
@@ -558,69 +318,6 @@ def _handle_generic_command(
         print(f"  Unknown command: {cmd}. Type 'help' for usage.")
 
 
-def _handle_preview(parts: list[str], preview: PreviewEngine) -> None:
-    if not parts:
-        print("  Usage: preview roll <character> <stat> [skill]")
-        print("         preview damage <character> <amount>")
-        return
-    sub = parts[0].lower()
-    if sub == "roll":
-        if len(parts) < 3:
-            print("  Usage: preview roll <character> <stat> [skill] [--adv|--dis]")
-            return
-        char_name = parts[1]
-        stat = parts[2]
-        advantage = "--adv" in parts
-        disadvantage = "--dis" in parts
-        remaining = [p for p in parts[3:] if p not in ("--adv", "--dis")]
-        skill = remaining[0] if remaining else None
-        result = preview.preview_roll(char_name, stat, skill=skill,
-                                      advantage=advantage, disadvantage=disadvantage)
-        print(f"  {result.description}")
-    elif sub == "damage":
-        if len(parts) < 3:
-            print("  Usage: preview damage <character> <amount>")
-            return
-        result = preview.preview_damage(parts[1], int(parts[2]))
-        print(f"  {result.description}")
-    else:
-        print(f"  Unknown preview command: {sub}")
-
-
-def _handle_snapshot(parts: list[str], preview: PreviewEngine) -> None:
-    if not parts:
-        print("  Usage: snapshot save|restore|list|delete [name]")
-        return
-    sub = parts[0].lower()
-    if sub == "save":
-        name = parts[1] if len(parts) > 1 else "default"
-        preview.save_snapshot(name)
-        print(f"  Snapshot '{name}' saved.")
-    elif sub == "restore":
-        name = parts[1] if len(parts) > 1 else "default"
-        if preview.restore_snapshot(name):
-            print(f"  Snapshot '{name}' restored.")
-        else:
-            print(f"  Snapshot '{name}' not found.")
-    elif sub == "list":
-        names = preview.list_snapshots()
-        if names:
-            for n in names:
-                print(f"  - {n}")
-        else:
-            print("  No snapshots.")
-    elif sub == "delete":
-        if len(parts) < 2:
-            print("  Usage: snapshot delete <name>")
-            return
-        if preview.delete_snapshot(parts[1]):
-            print(f"  Snapshot '{parts[1]}' deleted.")
-        else:
-            print(f"  Snapshot '{parts[1]}' not found.")
-    else:
-        print(f"  Unknown snapshot command: {sub}")
-
-
 def _maybe_post(
     client: httpx.Client | None, game_id: str | None,
     headers: dict | None, summary: str, details: dict,
@@ -640,36 +337,26 @@ def main():
     parser.add_argument("--load-state", help="Load engine state from a JSON file")
     parser.add_argument("--game-name", default="DM Session", help="Game name (offline mode)")
     parser.add_argument(
-        "--engine-type", default="core", choices=["core", "generic"],
-        help="Engine type (default: core)",
-    )
-    parser.add_argument(
-        "--engine-config", help="Path to GenericEngineConfig JSON (for generic engine)",
+        "--engine-config", help="Path to GenericEngineConfig JSON file",
     )
     args = parser.parse_args()
 
     if not args.offline and not (args.api_key and args.session_token and args.game_id):
         parser.error("Provide --api-key, --session-token, and --game-id, or use --offline")
 
-    preview = None
+    from game.generic.engine import GenericEngine
+    from game.generic.models import GenericEngineConfig
 
-    if args.engine_type == "generic":
-        from game.generic.engine import GenericEngine as GEngine
-        from game.generic.models import GenericEngineConfig
+    config = None
+    if args.engine_config:
+        config = GenericEngineConfig.model_validate_json(
+            Path(args.engine_config).read_text()
+        )
 
-        generic_config = None
-        if args.engine_config:
-            generic_config = GenericEngineConfig.model_validate_json(
-                Path(args.engine_config).read_text()
-            )
-        engine = GEngine(in_memory=True)
-        engine.init_game(args.game_name, config=generic_config)
-        if generic_config:
-            print(f"Generic engine config: stats={generic_config.stat_names}, dice={generic_config.dice.dice}")
-    else:
-        engine = GameEngine(in_memory=True)
-        engine.init_game(args.game_name)
-        preview = PreviewEngine(engine)
+    engine = GenericEngine(in_memory=True)
+    engine.init_game(args.game_name, config=config)
+    if config:
+        print(f"Engine config: stats={config.stat_names}, dice={config.dice.dice}")
 
     if args.load_state:
         data = Path(args.load_state).read_text()
@@ -678,7 +365,7 @@ def main():
 
     if args.offline:
         print("Running in offline mode (no server connection).")
-        run_interactive(engine, preview, None, None, None, engine_type=args.engine_type)
+        run_interactive(engine, None, None, None)
     else:
         headers = {
             "Authorization": f"Bearer {args.api_key}",
@@ -696,8 +383,7 @@ def main():
                 print(f"Error: Could not connect to {args.server}")
                 sys.exit(1)
 
-            run_interactive(engine, preview, client, args.game_id, headers,
-                            engine_type=args.engine_type)
+            run_interactive(engine, client, args.game_id, headers)
 
     # Offer to save state
     try:

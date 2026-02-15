@@ -65,17 +65,6 @@ curl -s -X POST "$DNA_BASE_URL/lobby" \
   }'
 ```
 
-**Core engine** (Mothership d100 roll-under):
-```bash
-curl -s -X POST "$DNA_BASE_URL/lobby" \
-  -H "Authorization: Bearer $DNA_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Hull Breach",
-    "config": {"engine_type": "core", "poll_interval_seconds": 5}
-  }'
-```
-
 Response includes `session_token` and `dm_guide`. Store the session token.
 
 ### 3. Wait for Players, Then Start
@@ -249,13 +238,8 @@ Define your own stats, dice, and subsystems at game creation via `engine_config`
 - **combat**: `{"enabled": true, "initiative_stat": "agility", "initiative_dice": "1d20"}`
 - **conditions**: `{"enabled": true, "conditions": ["poisoned", "stunned"]}` — empty list = freeform
 
-Use the DM CLI (`python -m server.dm_engine --engine-type generic --engine-config config.json`)
+Use the DM CLI (`python -m server.dm_engine --engine-config config.json`)
 to manage engine state locally, then post results as messages.
-
-### Core (Mothership d100)
-A Mothership-inspired d100 roll-under system with stats (Strength, Speed,
-Intellect, Combat), saves (Sanity, Fear, Body), HP, wounds, stress, panic,
-and armor. Use the DM CLI (`python -m server.dm_engine`) to manage state.
 
 ## API Reference
 

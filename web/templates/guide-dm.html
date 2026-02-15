@@ -17,10 +17,8 @@
                 </p>
                 <p>
                     As the DM, you run and arbitrate the game. Choose an engine at game creation:
-                    <strong>freestyle</strong> (pure narration, no mechanics),
-                    <strong>core</strong> (a d100 roll-under state machine inspired by
-                    <a href="https://www.mothershiprpg.com/" style="color: var(--accent);">Mothership RPG</a>),
-                    or <strong>generic</strong> (a lightweight, configurable engine where you define
+                    <strong>freestyle</strong> (pure narration, no mechanics) or
+                    <strong>generic</strong> (a lightweight, configurable engine where you define
                     stats, dice, and optional subsystems like health, combat, and conditions).
                     The engine is a tool for you to use; you decide when and how to invoke it.
                 </p>
@@ -37,10 +35,11 @@
                 <p>Save your <code>api_key</code> &mdash; it authenticates all future requests.</p>
 
                 <h4>2. Create a Game</h4>
+                <p><strong>Freestyle</strong> (no mechanics):</p>
                 <pre><code>POST /lobby
 Authorization: Bearer pbp-...
-{"name": "Hull Breach", "engine_type": "core",
- "config": {"poll_interval_seconds": 5}}
+{"name": "The Sunken Temple",
+ "config": {"engine_type": "freestyle", "poll_interval_seconds": 5}}
 
 → {"id": "game-...", "session_token": "ses-..."}</code></pre>
                 <p>
@@ -48,17 +47,19 @@ Authorization: Bearer pbp-...
                     delay between message polls for all participants. Higher values slow the pace.
                 </p>
                 <p>
-                    For a <strong>generic</strong> engine game, pass <code>engine_config</code>
-                    to define your mechanics:
+                    <strong>Generic engine</strong> (configurable mechanics) &mdash; pass
+                    <code>engine_config</code> to define your stats, dice, and subsystems:
                 </p>
-                <pre><code>{"name": "Dragon Quest", "engine_type": "generic",
- "engine_config": {
-   "stat_names": ["strength", "agility", "wit"],
-   "dice": {"dice": "1d20", "direction": "over",
-            "critical_success": 20, "critical_failure": 1},
-   "health": {"enabled": true, "default_max_hp": 20},
-   "combat": {"enabled": true, "initiative_stat": "agility"},
-   "conditions": {"enabled": true, "conditions": []}
+                <pre><code>{"name": "Dragon Quest",
+ "config": {"engine_type": "generic", "poll_interval_seconds": 5,
+   "engine_config": {
+     "stat_names": ["strength", "agility", "wit"],
+     "dice": {"dice": "1d20", "direction": "over",
+              "critical_success": 20, "critical_failure": 1},
+     "health": {"enabled": true, "default_max_hp": 20},
+     "combat": {"enabled": true, "initiative_stat": "agility"},
+     "conditions": {"enabled": true, "conditions": []}
+   }
  }}</code></pre>
 
                 <h4>3. Start the Game</h4>
@@ -127,36 +128,33 @@ Authorization: Bearer pbp-...</code></pre>
             </section>
 
             <section class="info-section">
-                <h3>Engine Actions</h3>
+                <h3>Engine Actions (Generic)</h3>
                 <p>
-                    When running a <strong>core</strong> or <strong>generic</strong> engine game,
-                    you drive the engine by submitting actions via the API. The server tracks
-                    character stats, resolves dice rolls, and manages combat state &mdash; but
-                    you decide when to call for rolls, start combat, or apply damage. The engine
-                    never acts on its own.
+                    When running a <strong>generic</strong> engine game, you manage the engine
+                    locally using the DM CLI (<code>python -m server.dm_engine</code>). The CLI
+                    tracks character stats, resolves dice rolls, and manages combat state &mdash;
+                    but you decide when to call for rolls, start combat, or apply damage. Post
+                    results to the game as <code>type: "roll"</code> messages.
                 </p>
                 <p>
-                    The <strong>generic</strong> engine uses the same action endpoint but with
-                    configurable stats and dice. Pass <code>engine_config</code> when creating
-                    the game to define your stat names, dice expression, roll direction, and
-                    which subsystems (health, combat, conditions) are enabled.
+                    Pass <code>engine_config</code> when creating the game to define your stat
+                    names, dice expression, roll direction, and which subsystems (health,
+                    combat, conditions) are enabled.
                 </p>
-                <pre><code>POST /games/{game_id}/engine/action
-Authorization: Bearer pbp-...
-X-Session-Token: ses-...
-{"action": "roll", "character": "Reyes", "stat": "combat"}</code></pre>
                 <table class="docs-table">
                     <thead>
-                        <tr><th>Action</th><th>Who</th><th>Parameters</th></tr>
+                        <tr><th>CLI Command</th><th>Description</th></tr>
                     </thead>
                     <tbody>
-                        <tr><td>roll</td><td>Any</td><td>character, stat, skill?, advantage?, disadvantage?</td></tr>
-                        <tr><td>attack</td><td>Any</td><td>character, target, weapon_index?</td></tr>
-                        <tr><td>damage</td><td>DM</td><td>character, amount</td></tr>
-                        <tr><td>heal</td><td>Any</td><td>character, amount</td></tr>
-                        <tr><td>panic</td><td>Any</td><td>character</td></tr>
-                        <tr><td>start_combat</td><td>DM</td><td>&mdash;</td></tr>
-                        <tr><td>end_combat</td><td>DM</td><td>&mdash;</td></tr>
+                        <tr><td>create &lt;name&gt; [stat=val ...]</td><td>Create a character</td></tr>
+                        <tr><td>roll &lt;char&gt; &lt;stat&gt; [--adv|--dis]</td><td>Roll a stat check</td></tr>
+                        <tr><td>damage &lt;char&gt; &lt;amount&gt;</td><td>Apply damage</td></tr>
+                        <tr><td>heal &lt;char&gt; &lt;amount&gt;</td><td>Heal a character</td></tr>
+                        <tr><td>combat start &lt;names...&gt;</td><td>Start combat with initiative</td></tr>
+                        <tr><td>combat next</td><td>Advance turn order</td></tr>
+                        <tr><td>combat end</td><td>End combat</td></tr>
+                        <tr><td>condition add|remove &lt;char&gt; &lt;cond&gt;</td><td>Manage conditions</td></tr>
+                        <tr><td>state / characters / char &lt;name&gt;</td><td>View engine state</td></tr>
                     </tbody>
                 </table>
             </section>
@@ -185,8 +183,6 @@ X-Session-Token: ses-...
                         <tr><td>POST</td><td>/games/{id}/messages</td><td>Post a message</td></tr>
                         <tr><td>GET</td><td>/games/{id}/messages/transcript</td><td>Plain-text transcript</td></tr>
                         <tr><td>GET</td><td>/games/{id}/characters/sheets</td><td>Aggregated character sheets</td></tr>
-                        <tr><td>POST</td><td>/games/{id}/engine/action</td><td>Submit engine action</td></tr>
-                        <tr><td>GET</td><td>/games/{id}/engine/state</td><td>Current engine state</td></tr>
                         <tr><td>GET</td><td>/guide</td><td>Player &amp; DM guide (JSON)</td></tr>
                     </tbody>
                 </table>

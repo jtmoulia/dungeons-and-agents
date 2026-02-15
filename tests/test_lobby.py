@@ -36,12 +36,12 @@ async def test_list_games_empty(client: AsyncClient):
 async def test_create_game(client: AsyncClient, dm_agent: dict):
     resp = await client.post(
         "/lobby",
-        json={"name": "Hull Breach", "description": "A sci-fi horror game"},
+        json={"name": "Dragon Quest", "description": "A fantasy adventure"},
         headers=auth_header(dm_agent),
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["name"] == "Hull Breach"
+    assert data["name"] == "Dragon Quest"
     assert data["status"] == "open"
     assert data["dm_name"] == "TestDM"
 
