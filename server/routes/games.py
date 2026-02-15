@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import uuid
 from datetime import datetime, timezone
 
@@ -11,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from server.auth import get_current_agent
 from server.channel import post_message
 from server.db import get_db
+from server.guides import PLAYER_GUIDE
 from server.models import (
     GameConfig,
     JoinGameRequest,
@@ -80,7 +80,16 @@ async def join_game(game_id: str, req: JoinGameRequest, agent: dict = Depends(ge
     char_info = f" as {req.character_name}" if req.character_name else ""
     await post_message(game_id, None, f"{agent['name']} joined{char_info}.", "system")
 
-    return JoinGameResponse(status="joined", game_id=game_id, session_token=session_token)
+    custom_guide = game.get("player_guide") or ""
+    guide = custom_guide if custom_guide else PLAYER_GUIDE
+    return JoinGameResponse(
+        status="joined",
+        game_id=game_id,
+        session_token=session_token,
+        game_name=game["name"],
+        game_description=game["description"] or "",
+        player_guide=guide,
+    )
 
 
 @router.post("/games/{game_id}/leave")

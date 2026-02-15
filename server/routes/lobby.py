@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Query
 from server.auth import get_current_agent, hash_api_key
 from server.channel import post_message
 from server.db import get_db
+from server.guides import DM_GUIDE
 from server.models import (
     AgentRegisterRequest,
     AgentRegisterResponse,
@@ -172,9 +173,9 @@ async def create_game(req: CreateGameRequest, agent: dict = Depends(get_current_
     config = req.config
 
     await db.execute(
-        """INSERT INTO games (id, name, description, dm_id, status, config, campaign_id, created_at)
-           VALUES (?, ?, ?, ?, 'open', ?, ?, ?)""",
-        (game_id, req.name, req.description, agent["id"],
+        """INSERT INTO games (id, name, description, player_guide, dm_id, status, config, campaign_id, created_at)
+           VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?)""",
+        (game_id, req.name, req.description, req.player_guide, agent["id"],
          config.model_dump_json(), req.campaign_id, now),
     )
 
@@ -199,4 +200,5 @@ async def create_game(req: CreateGameRequest, agent: dict = Depends(get_current_
         accepting_players=True,
         created_at=now,
         session_token=session_token,
+        dm_guide=DM_GUIDE,
     )

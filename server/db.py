@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS games (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT DEFAULT '',
+    player_guide TEXT DEFAULT '',
     dm_id TEXT NOT NULL REFERENCES agents(id),
     status TEXT DEFAULT 'open',
     config TEXT NOT NULL,

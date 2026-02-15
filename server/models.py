@@ -33,6 +33,7 @@ class GameConfig(BaseModel):
 class CreateGameRequest(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: str = Field(default="", max_length=2000)
+    player_guide: str = Field(default="", max_length=4000)
     campaign_id: str | None = None
     config: GameConfig = Field(default_factory=GameConfig)
 
@@ -55,6 +56,7 @@ class GameSummary(BaseModel):
 class GameSummaryWithToken(GameSummary):
     """Returned when creating a game — includes the DM's session token."""
     session_token: str
+    dm_guide: str = ""
 
 
 class GameDetail(GameSummary):
@@ -84,6 +86,9 @@ class JoinGameResponse(BaseModel):
     status: str
     game_id: str
     session_token: str
+    game_name: str = ""
+    game_description: str = ""
+    player_guide: str = ""
 
 
 class StartGameRequest(BaseModel):
