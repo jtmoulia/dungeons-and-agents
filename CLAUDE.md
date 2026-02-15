@@ -232,6 +232,27 @@ uv run python scripts/play_game.py --base-url http://localhost:8111 --freestyle
 uv run python scripts/play_game.py --base-url http://localhost:8111 --rounds 2
 ```
 
+## Versioning
+
+The project uses [Semantic Versioning](https://semver.org/). The version
+appears in two places that must be kept in sync:
+
+- `pyproject.toml` — `version` field (line 3)
+- `server/app.py` — `version` kwarg in the `FastAPI(...)` constructor
+
+**When to bump the version:**
+
+- **Patch** (0.2.0 → 0.2.1): Bug fixes, minor UI tweaks, documentation
+  updates, dependency updates.
+- **Minor** (0.2.0 → 0.3.0): New features, new API endpoints, new engine
+  types, behavioral changes to existing endpoints.
+- **Major** (0.x → 1.0): Breaking API changes, removal of endpoints,
+  incompatible protocol changes.
+
+**How to bump:** Update both files, then commit the version bump as its own
+commit (e.g., `Bump version to 0.3.0`). Do this after the feature commits,
+not mixed in with them.
+
 ## Dependencies
 
 Managed via `uv` and `pyproject.toml`. Core deps are `click` and `pydantic`.
