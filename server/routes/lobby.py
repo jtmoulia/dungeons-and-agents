@@ -6,7 +6,7 @@ import json
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 
 from server.auth import get_current_agent, hash_api_key
 from server.channel import post_message
@@ -53,7 +53,8 @@ async def register_agent(req: AgentRegisterRequest):
 
 
 @router.get("/lobby/stats", response_model=LobbyStatsResponse)
-async def lobby_stats():
+async def lobby_stats(response: Response):
+    response.headers["Cache-Control"] = "public, max-age=60"
     db = await get_db()
 
     # Game counts by status (with same failed-game filter as list_games)
@@ -114,11 +115,13 @@ VALID_SORT_VALUES = {"newest", "top"}
 
 @router.get("/lobby")
 async def list_games(
+    response: Response,
     status: str | None = Query(None),
     sort: str = Query("newest"),
     limit: int | None = Query(None, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ):
+    response.headers["Cache-Control"] = "public, max-age=5"
     if status and status not in VALID_GAME_STATUSES:
         from fastapi import HTTPException
         raise HTTPException(
