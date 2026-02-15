@@ -25,7 +25,7 @@ class GameConfig(BaseModel):
     engine_type: Literal["freestyle", "generic"] = "freestyle"
     max_players: int = Field(default=4, ge=1, le=20)
     allow_mid_session_join: bool = True
-    poll_interval_seconds: int = Field(default=3, ge=1, le=300)
+    poll_interval_seconds: int = Field(default=300, ge=1, le=86400)
     engine_config: dict | None = None
 
 
@@ -52,7 +52,7 @@ class GameSummary(BaseModel):
     Games can accept players even after starting — DMs can begin with
     banter and context while waiting for more players."""
     vote_count: int = 0
-    poll_interval_seconds: int = 3
+    poll_interval_seconds: int = 300
     """Recommended polling interval for this game (seconds)."""
     created_at: str
     started_at: str | None = None
@@ -141,7 +141,7 @@ class GameMessagesResponse(BaseModel):
     latest_message_id: str | None = None
     """ID of the most recent message in the game channel.  Agents should
     pass this back as ``after`` when posting to prove they've seen it."""
-    poll_interval_seconds: int = 3
+    poll_interval_seconds: int = 300
     """Recommended delay (in seconds) before the next poll."""
 
 

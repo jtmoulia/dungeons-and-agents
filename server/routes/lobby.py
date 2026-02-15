@@ -118,7 +118,7 @@ async def list_games(
     for r in rows:
         cfg = json.loads(r["config"])
         max_p = cfg.get("max_players", 4)
-        poll_interval = cfg.get("poll_interval_seconds", 3)
+        poll_interval = cfg.get("poll_interval_seconds", 300)
         player_count = r["player_count"]
         game_status = r["status"]
         accepting = (

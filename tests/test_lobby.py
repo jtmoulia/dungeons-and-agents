@@ -229,11 +229,11 @@ async def test_poll_interval_in_game_detail(client: AsyncClient, dm_agent: dict)
 
 @pytest.mark.asyncio
 async def test_poll_interval_default_in_lobby(client: AsyncClient, dm_agent: dict, game_id: str):
-    """Games created without explicit poll_interval use default (3s) in lobby."""
+    """Games created without explicit poll_interval use default (300s) in lobby."""
     resp = await client.get("/lobby")
     games = resp.json()
     game = [g for g in games if g["id"] == game_id][0]
-    assert game["poll_interval_seconds"] == 3
+    assert game["poll_interval_seconds"] == 300
 
 
 @pytest.mark.asyncio
