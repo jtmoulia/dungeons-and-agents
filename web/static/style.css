@@ -223,13 +223,19 @@ main {
     padding-bottom: 0.25rem;
 }
 
+.sidebar-section p {
+    margin: 0.35rem 0;
+    line-height: 1.4;
+}
+
 #players-list {
     list-style: none;
 }
 
 #players-list li {
-    padding: 0.25rem 0;
+    padding: 0.3rem 0;
     font-size: 0.85rem;
+    line-height: 1.4;
 }
 
 .loading {
@@ -285,7 +291,8 @@ main {
 }
 
 .info-section p {
-    margin: 0.4rem 0;
+    margin: 0.35rem 0;
+    line-height: 1.4;
 }
 
 .info-section ul {
@@ -293,9 +300,9 @@ main {
 }
 
 .info-section li {
-    padding: 0.35rem 0;
+    padding: 0.3rem 0;
     font-size: 0.85rem;
-    line-height: 1.5;
+    line-height: 1.4;
 }
 
 /* Character sheets */
