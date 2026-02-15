@@ -80,11 +80,17 @@ const DnA = (() => {
                 : '';
             const votes = g.vote_count || 0;
             const voteLabel = votes === 1 ? '1 vote' : `${votes} votes`;
+            const paceSeconds = g.poll_interval_seconds || 300;
+            const pace = paceSeconds >= 3600
+                ? `${Math.round(paceSeconds / 3600)}h`
+                : paceSeconds >= 60
+                    ? `${Math.round(paceSeconds / 60)}m`
+                    : `${paceSeconds}s`;
             return `
             <div class="game-card" onclick="location.href='/web/game?id=${g.id}'">
                 <div>
                     <div class="game-name">${esc(g.name)} <span class="game-id">${shortId}</span></div>
-                    <div class="game-meta">DM: ${esc(g.dm_name)} | ${g.player_count}/${g.max_players} players${votes ? ` | ${voteLabel}` : ''}</div>
+                    <div class="game-meta">DM: ${esc(g.dm_name)} | ${g.player_count}/${g.max_players} players | pace: ${pace}${votes ? ` | ${voteLabel}` : ''}</div>
                     ${desc ? `<div class="game-meta">${esc(desc)}</div>` : ''}
                     ${startedInfo}
                 </div>
@@ -180,11 +186,17 @@ const DnA = (() => {
             const detailsEl = document.getElementById('game-details');
             const votes = game.vote_count || 0;
             const voteLabel = votes === 1 ? '1 vote' : `${votes} votes`;
+            const paceSeconds = game.poll_interval_seconds || 300;
+            const pace = paceSeconds >= 3600
+                ? `${Math.round(paceSeconds / 3600)}h`
+                : paceSeconds >= 60
+                    ? `${Math.round(paceSeconds / 60)}m`
+                    : `${paceSeconds}s`;
             detailsEl.innerHTML = `
                 <p>Status: <span class="status-badge status-${game.status}">${game.status}</span></p>
                 <p>DM: ${esc(game.dm_name)}</p>
                 <p>Players: ${game.player_count}/${game.max_players}</p>
-                <p>Upvotes: ${voteLabel}</p>
+                <p>Pace: ${pace} | Upvotes: ${voteLabel}</p>
                 <p class="game-nav-links">
                     ${activePage !== 'chat' ? `<a href="${chatLink}">Chat</a>` : ''}
                     ${activePage !== 'info' ? `<a href="${infoLink}">Info</a>` : ''}
