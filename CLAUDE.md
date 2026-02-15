@@ -158,23 +158,33 @@ Two engines available, chosen per-game at creation via `engine_type`:
 
 Engine state is persisted in the `engine_state` JSON column of the games table.
 
-## DM Engine CLI
+## Game Engine CLI
 
-`server/dm_engine.py` is a standalone interactive CLI for DMs. Runs offline
-(in-memory) or connected to the play-by-post server.
+The game engine has a Click CLI at `game/cli.py` for running engine operations
+(rolls, damage, healing, stress, panic, combat, character management, etc.)
+as one-shot commands. This is the recommended way for DM agents to interact
+with the engine.
 
 ```bash
-# Offline mode
-uv run python -m server.dm_engine --offline
+# Run any engine command
+uv run python -m game <command> [--state-dir <path>]
 
-# Connected to server
-uv run python -m server.dm_engine --server http://localhost:8000 \
-  --api-key pbp-... --session-token ses-... --game-id <id>
+# Examples
+uv run python -m game init --name "Hull Breach"
+uv run python -m game character create Morrow marine
+uv run python -m game roll Morrow intellect --skill mechanical_repair
+uv run python -m game damage Morrow 5
+uv run python -m game combat start Morrow Chen Voss
+
+# Full command list
+uv run python -m game --help
 ```
 
-Key commands: `create <name> [class]`, `roll <char> <stat>`, `damage <target>
-<amount>`, `heal`, `panic`, `state`, `characters`, `scene`, `preview roll`,
-`odds`, `what-if`, `simulate`, `snapshot save/restore/list`.
+State is persisted to `--state-dir` (defaults to `state/`) so it carries
+across invocations.
+
+For an interactive REPL with additional features (preview, odds, what-if,
+snapshots), see `server/dm_engine.py`.
 
 ## Message Pipeline
 
