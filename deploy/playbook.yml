@@ -1,0 +1,181 @@
+---
+# Dungeons and Agents — Full server setup playbook
+# Usage: ansible-playbook -i inventory.ini playbook.yml
+#
+# Variables (pass with -e or set in inventory):
+#   server_name: hostname for nginx (default: droplet IP)
+#   repo_url: git clone URL (default: GitHub SSH URL)
+#   enable_tls: run certbot for HTTPS (default: false)
+
+- name: Set up Dungeons and Agents server
+  hosts: dna
+  become: true
+  vars:
+    server_name: "{{ ansible_host }}"
+    repo_url: "git@github.com:jtmoulia/dungeons-and-agents.git"
+    app_dir: /opt/dna
+    enable_tls: false
+
+  tasks:
+    # --- System packages ---
+    - name: Update apt cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install system dependencies
+      apt:
+        name:
+          - python3
+          - python3-venv
+          - git
+          - nginx
+          - certbot
+          - python3-certbot-nginx
+          - ufw
+        state: present
+
+    # --- uv ---
+    - name: Check if uv is installed
+      command: /root/.local/bin/uv --version
+      register: uv_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: Install uv
+      shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+      when: uv_check.rc != 0
+
+    # --- Application ---
+    - name: Clone repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_dir }}"
+        version: main
+        accept_hostkey: true
+      notify: restart dna
+
+    - name: Install Python dependencies
+      command: /root/.local/bin/uv sync --extra server
+      args:
+        chdir: "{{ app_dir }}"
+      changed_when: false
+
+    - name: Create logs directory
+      file:
+        path: "{{ app_dir }}/logs"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+
+    - name: Create backups directory
+      file:
+        path: "{{ app_dir }}/backups"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+
+    - name: Write environment file
+      template:
+        src: templates/dna.env.j2
+        dest: "{{ app_dir }}/.env"
+        owner: www-data
+        group: www-data
+        mode: "0600"
+      notify: restart dna
+
+    - name: Set application ownership
+      file:
+        path: "{{ app_dir }}"
+        owner: www-data
+        group: www-data
+        recurse: true
+
+    # --- Systemd ---
+    - name: Install systemd service
+      template:
+        src: templates/dna.service.j2
+        dest: /etc/systemd/system/dna.service
+      notify:
+        - reload systemd
+        - restart dna
+
+    - name: Enable and start dna service
+      systemd:
+        name: dna
+        enabled: true
+        state: started
+
+    # --- Nginx ---
+    - name: Install nginx site config
+      template:
+        src: templates/dna-nginx.conf.j2
+        dest: /etc/nginx/sites-available/dna
+      notify: reload nginx
+
+    - name: Enable nginx site
+      file:
+        src: /etc/nginx/sites-available/dna
+        dest: /etc/nginx/sites-enabled/dna
+        state: link
+      notify: reload nginx
+
+    - name: Remove default nginx site
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: reload nginx
+
+    # --- Firewall ---
+    - name: Allow SSH through ufw
+      ufw:
+        rule: allow
+        port: "22"
+        proto: tcp
+
+    - name: Allow HTTP through ufw
+      ufw:
+        rule: allow
+        port: "80"
+        proto: tcp
+
+    - name: Allow HTTPS through ufw
+      ufw:
+        rule: allow
+        port: "443"
+        proto: tcp
+
+    - name: Enable ufw
+      ufw:
+        state: enabled
+        default: deny
+
+    # --- TLS (optional) ---
+    - name: Obtain TLS certificate
+      command: certbot --nginx -d {{ server_name }} --non-interactive --agree-tos --email admin@{{ server_name }}
+      when: enable_tls | bool
+      notify: reload nginx
+
+    # --- Backups ---
+    - name: Install backup cron job
+      template:
+        src: templates/dna-backup.cron.j2
+        dest: /etc/cron.d/dna-backup
+        mode: "0644"
+
+  handlers:
+    - name: reload systemd
+      systemd:
+        daemon_reload: true
+
+    - name: restart dna
+      systemd:
+        name: dna
+        state: restarted
+
+    - name: reload nginx
+      service:
+        name: nginx
+        state: reloaded

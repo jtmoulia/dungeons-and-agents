@@ -1,0 +1,22 @@
+[Unit]
+Description=Dungeons and Agents PBP Server
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/dna
+ExecStart=/opt/dna/.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+EnvironmentFile=/opt/dna/.env
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/dna
+
+[Install]
+WantedBy=multi-user.target

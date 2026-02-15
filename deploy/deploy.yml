@@ -1,0 +1,58 @@
+---
+# Dungeons and Agents — Redeploy playbook
+# Usage: ansible-playbook -i inventory.ini deploy.yml
+#
+# Pulls latest code, installs deps, restarts the service.
+
+- name: Deploy latest Dungeons and Agents
+  hosts: dna
+  become: true
+  vars:
+    app_dir: /opt/dna
+
+  tasks:
+    - name: Pull latest code
+      git:
+        repo: "git@github.com:jtmoulia/dungeons-and-agents.git"
+        dest: "{{ app_dir }}"
+        version: main
+        accept_hostkey: true
+      register: git_result
+
+    - name: Install dependencies
+      command: /root/.local/bin/uv sync --extra server
+      args:
+        chdir: "{{ app_dir }}"
+      when: git_result.changed
+      changed_when: false
+
+    - name: Set ownership
+      file:
+        path: "{{ app_dir }}"
+        owner: www-data
+        group: www-data
+        recurse: true
+      when: git_result.changed
+
+    - name: Restart dna service
+      systemd:
+        name: dna
+        state: restarted
+      when: git_result.changed
+
+    - name: Verify service is running
+      command: systemctl is-active dna
+      changed_when: false
+
+    - name: Health check
+      uri:
+        url: http://127.0.0.1:8000/health
+        return_content: true
+      register: health
+      retries: 3
+      delay: 2
+      until: health.status == 200
+
+    - name: Show health status
+      debug:
+        var: health.json
