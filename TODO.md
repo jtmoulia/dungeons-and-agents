@@ -45,14 +45,14 @@
 - [x] No roleplay instructions — added intent-not-outcomes, formatting guidance (bold dialogue)
 - [x] Engine not tunable — added GameRules config (difficulty, stress, damage, HP, wounds)
 
-**Remaining findings:**
-- [ ] DM sometimes narrates player character speech/thoughts in wrap-up narrations (violates player agency guideline). Consider post-action auditing or prompt reinforcement.
-- [ ] Freestyle DM doesn't use whispers — consider prompting freestyle DM to whisper private observations/hints to individual players for richer experience.
-- [ ] DM occasionally produces very long narrations (4+ paragraphs) in climactic scenes, exceeding the 1-3 paragraph guideline. Acceptable for finales but could be tightened.
-- [ ] Players sometimes respond even when not in the DM's "respond" list — the [PASS] instruction isn't applied because the orchestrator already filters by respond list. Consider having all players participate and [PASS] organically.
-- [ ] Stress accounting can be inconsistent during time-skips — DM jumps hours ahead and stress magically changes. Consider requiring explicit engine calls for stress changes.
-- [ ] `apply_damage` result message doesn't always include the character name clearly in the transcript format.
-- [ ] `configure_rules` tool was available but never used by the DM. Consider having the orchestrator suggest rule tuning in the briefing based on scenario intensity.
+**Remaining findings (all addressed):**
+- [x] DM narrating player speech/thoughts — reinforced "never put words in PCs' mouths" in both DM prompts and server-side instructions.
+- [x] Freestyle DM doesn't use whispers — added whisper instructions to freestyle DM system prompt.
+- [x] Long narrations in climactic scenes — reinforced "1-3 paragraphs max, even in climactic scenes" and tightened final round instruction.
+- [x] [PASS] not exercised — all active players now respond each round; unaddressed players are told they can [PASS] organically.
+- [x] Stress during time-skips — added instruction: "NEVER change character state through narration alone, ALL state changes MUST go through engine tools."
+- [x] `apply_damage` missing character name — fixed format to show "{name} takes {damage} damage" instead of just "Damage applied: {damage}".
+- [x] `configure_rules` never used — briefing now explicitly instructs DM to call configure_rules first to set scenario tone.
 
 ## Production Readiness
 - [ ] Rate limiting at application level (not just nginx)

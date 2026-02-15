@@ -148,10 +148,18 @@ You are the **Warden** (DM) for "Dungeons and Agents," a sci-fi horror RPG.
 ## Style
 
 - **Tone**: Sci-fi horror. Tense, atmospheric. Think Alien meets blue-collar space workers.
-- **Length**: 1-3 SHORT paragraphs. Punchy, not purple. Leave space for players to react.
+- **Length**: 1-3 SHORT paragraphs max, even in climactic scenes. Punchy, not purple.
 - **Pacing**: End each narration with a clear prompt — a question, a sound, a choice.
 - **NPCs**: Give them distinct voices and personalities.
-- **Player agency**: Present situations. Never dictate what player characters do or feel.
+- **Player agency**: Present situations. NEVER dictate what player characters do, feel, \
+say, or think. Never put words in their mouths or narrate their internal state. \
+Describe the world and NPCs; let players describe their own characters.
+
+## Whispers
+
+Use whispers to send private information to individual players — things only they \
+would notice, private warnings, secret details, or unsettling observations. This \
+adds depth and makes each player's experience unique.
 
 ## Mode
 
@@ -175,10 +183,12 @@ backed by a d100 roll-under game engine.
 ## Style
 
 - **Tone**: Sci-fi horror. Tense, atmospheric. Think Alien meets blue-collar space workers.
-- **Length**: 1-3 SHORT paragraphs. Punchy, not purple. Leave space for players to react.
+- **Length**: 1-3 SHORT paragraphs max, even in climactic scenes. Punchy, not purple.
 - **Pacing**: End each narration with a clear prompt — a question, a sound, a choice.
 - **NPCs**: Give them distinct voices and personalities.
-- **Player agency**: Present situations. Never dictate what player characters do or feel.
+- **Player agency**: Present situations. NEVER dictate what player characters do, feel, \
+say, or think. Never put words in their mouths or narrate their internal state. \
+Describe the world and NPCs; let players describe their own characters.
 
 ## Game Engine
 
@@ -208,6 +218,11 @@ bad rolls — narrate the consequences.
 - Weave mechanical results into cinematic narration. Don't just say "you succeeded" — \
 describe what success or failure looks like in the fiction.
 - Critical successes deserve dramatic payoff. Critical failures should be memorable.
+- NEVER change character state (HP, stress, conditions) through narration alone. \
+ALL state changes MUST go through engine tools. If you narrate a time-skip, \
+don't assume stress or health changed — use add_stress or heal explicitly.
+- Call configure_rules in your FIRST response to set the tone for the scenario \
+(e.g. high stress for horror, high damage for lethal encounters).
 
 ## Campaign Reference
 
@@ -597,12 +612,23 @@ def main():
     for name, sheet in all_sheets.items():
         sheets_block += f"\n{sheet}\n"
 
+    engine_setup = ""
+    if use_engine:
+        engine_setup = (
+            "\n\nIMPORTANT — Before narrating, call configure_rules to set the tone "
+            "for this scenario. Consider: difficulty_modifier (positive = harder checks), "
+            "stress_per_failed_check (2 for high-tension horror), damage_multiplier "
+            "(1.5 for lethal encounters), max_wounds (1 for deadly, 3 for forgiving). "
+            "Choose settings that match the scenario's intensity.\n"
+        )
+
     briefing = (
         f"Game briefing: you have {args.rounds} rounds total to tell this story. "
         f"Pace yourself — introduction, escalation, climax, resolution.\n\n"
         f"Current players:\n" + "\n".join(char_summaries) + "\n\n"
         f"Joining later:\n{joining_later}\n\n"
         f"Character sheets:\n{sheets_block}\n"
+        f"{engine_setup}"
         f"IMPORTANT — You MUST include whispers in your first response. Use the \"whispers\" "
         f"field in your JSON response to privately send each player their character stats. "
         f"Example format:\n"
@@ -682,28 +708,31 @@ def main():
             )
         if is_last:
             round_instruction += (
-                " This is the FINAL round. Wrap up the story — resolve the crisis, "
-                "narrate the aftermath, and end on a strong note."
+                " This is the FINAL round. Wrap up the story — resolve the crisis "
+                "and end on a strong note. Keep it to 1-3 paragraphs (the epilogue "
+                "comes after). Do NOT narrate what player characters say or think."
             )
 
         print(f"\n  [Warden narrating...]", flush=True)
         narration = dm.narrate(round_instruction)
         print(f"  [Warden done]", flush=True)
 
-        # Determine responders from DM's respond list
+        # All active players respond; those not in the DM's respond list
+        # are told they can [PASS] if the scene doesn't involve them.
         respond_names = narration.get("_respond", [])
-        if respond_names:
-            tagged = {name.strip().lower() for name in respond_names}
-            responders = [p for p in active_players if p.name.lower() in tagged]
-            if not responders:
-                responders = active_players
-            print(f"  [Responding: {', '.join(p.name for p in responders)}]", flush=True)
-        else:
-            responders = active_players
+        tagged = {name.strip().lower() for name in respond_names} if respond_names else set()
 
-        for player in responders:
+        for player in active_players:
+            is_addressed = not tagged or player.name.lower() in tagged
             print(f"  [{player.name} acting...]", flush=True)
-            player.take_turn(f"Respond as {player.name}.")
+            if is_addressed:
+                player.take_turn(f"Respond as {player.name}.")
+            else:
+                player.take_turn(
+                    f"The DM's narration didn't address {player.name} directly this round. "
+                    f"If you have nothing specific to react to, respond with exactly [PASS]. "
+                    f"Otherwise, react briefly if something in the scene compels you."
+                )
             print(f"  [{player.name} done]", flush=True)
 
     # ── Closing narration ────────────────────────────────────────────

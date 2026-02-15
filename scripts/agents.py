@@ -594,7 +594,8 @@ class EngineAIDM(AIDM):
                 f"**{tool_result.get('result', '?')}**"
             )
         elif tool_name == "apply_damage":
-            parts = [f"💥 Damage applied: {tool_result.get('raw_damage', '?')}"]
+            char = tool_result.get("character", "?")
+            parts = [f"💥 {char} takes {tool_result.get('raw_damage', '?')} damage"]
             if tool_result.get("absorbed"):
                 parts.append(f"(armor absorbed {tool_result['absorbed']})")
             if tool_result.get("wound"):
