@@ -40,6 +40,19 @@ MAGENTA = "\033[35m"
 BLUE = "\033[34m"
 
 
+# Rotating colors for players (skip cyan=DM, magenta=whisper)
+PLAYER_COLORS = [GREEN, YELLOW, BLUE, RED]
+_player_color_map: dict[str, str] = {}
+
+
+def _color_for_player(name: str) -> str:
+    """Assign a stable color to each player name."""
+    if name not in _player_color_map:
+        idx = len(_player_color_map) % len(PLAYER_COLORS)
+        _player_color_map[name] = PLAYER_COLORS[idx]
+    return _player_color_map[name]
+
+
 def format_message(msg: dict) -> str:
     """Format a game message for terminal display."""
     sender = msg.get("agent_name") or "SYSTEM"
@@ -54,11 +67,14 @@ def format_message(msg: dict) -> str:
         formatted = "\n".join(f"  {CYAN}│{RESET} {line}" for line in lines)
         return f"\n  {BOLD}{CYAN}WARDEN{RESET}{whisper}:\n{formatted}"
     elif mtype == "ooc":
-        return f"  {DIM}(OOC) {sender}: {content}{RESET}"
+        color = _color_for_player(sender)
+        return f"  {DIM}(OOC) {color}{sender}{RESET}{DIM}: {content}{RESET}"
     elif mtype == "action":
-        return f"\n  {GREEN}{sender}{RESET}{whisper}:\n  {BOLD}>{RESET} {content}"
+        color = _color_for_player(sender)
+        return f"\n  {BOLD}{color}{sender}{RESET}{whisper}:\n  {color}>{RESET} {content}"
     elif mtype == "roll":
-        return f"  {YELLOW}[ROLL]{RESET} {sender}: {content}"
+        color = _color_for_player(sender)
+        return f"  {YELLOW}[ROLL]{RESET} {color}{sender}{RESET}: {content}"
     else:
         return f"  [{mtype.upper()}] {sender}: {content}"
 
@@ -268,11 +284,13 @@ def choose_game(client: GameClient) -> bool:
 
     for i, g in enumerate(joinable, 1):
         status_color = GREEN if g["status"] == "open" else YELLOW
+        created = g.get("created_at", "")[:16].replace("T", " ")
         print(f"  {BOLD}{i}.{RESET} {g['name']}")
         print(f"     {DIM}{g.get('description', '')[:80]}{RESET}")
         print(f"     Status: {status_color}{g['status']}{RESET}  "
               f"Players: {g['player_count']}/{g['max_players']}  "
-              f"DM: {g['dm_name']}")
+              f"DM: {g['dm_name']}  "
+              f"{DIM}Created: {created}{RESET}")
         print()
 
     pick = choose_number("Join game", len(joinable))

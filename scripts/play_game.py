@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import uuid
 from pathlib import Path
 
@@ -54,6 +55,17 @@ dialogue. This keeps the game snappy and conversational.
 - **NPCs**: Give them distinct voices. Lin speaks in clipped, clinical sentences. \
 Delacroix rambles when scared. ARIA is monotone and procedural. Tran is terse and data-focused.
 - **Player agency**: Present situations. Never dictate what player characters do or feel.
+- **Selective addressing**: Don't address every player every round. Focus on 1-2 characters \
+per narration to keep the pace tight. Rotate focus across rounds.
+
+## Response Tag (REQUIRED)
+
+At the very end of every narration, add a tag listing which characters should respond:
+```
+[RESPOND: Reyes, Okafor]
+```
+Only list characters who were directly addressed or who have a clear reason to act. \
+Not everyone needs to respond every round. This is crucial for pacing.
 
 ## Rules
 
@@ -350,12 +362,23 @@ def main():
 
         # DM narrates
         hint = pacing[round_num]
+        active_names = ", ".join(p.name for p in active_players)
+        full_hint = f"{hint}\n\nActive players: {active_names}. End with [RESPOND: name1, name2] to indicate who should reply."
         print(f"\n  [Warden narrating...]", flush=True)
-        dm.narrate(hint)
+        narration = dm.narrate(full_hint)
         print(f"  [Warden done]", flush=True)
 
-        # Each player responds
-        for player in active_players:
+        # Parse [RESPOND: ...] tag from DM narration to decide who acts
+        narration_text = narration.get("content", "")
+        respond_match = re.search(r'\[RESPOND:\s*([^\]]+)\]', narration_text, re.IGNORECASE)
+        if respond_match:
+            tagged = {name.strip().lower() for name in respond_match.group(1).split(",")}
+            responders = [p for p in active_players if p.name.lower() in tagged]
+        else:
+            # Fallback: everyone responds
+            responders = active_players
+
+        for player in responders:
             print(f"  [{player.name} acting...]", flush=True)
             player.take_turn(
                 f"Respond as {player.name}. Keep it to 1-4 sentences — an action, "
@@ -421,23 +444,39 @@ def main():
         },
     ).json()
 
+    # ANSI colors for transcript
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    RESET = "\033[0m"
+    CYAN = "\033[36m"
+    MAGENTA = "\033[35m"
+    PLAYER_COLORS = ["\033[32m", "\033[33m", "\033[34m", "\033[31m"]  # green, yellow, blue, red
+    color_map: dict[str, str] = {}
+
+    def player_color(name: str) -> str:
+        if name not in color_map:
+            color_map[name] = PLAYER_COLORS[len(color_map) % len(PLAYER_COLORS)]
+        return color_map[name]
+
     for msg in messages:
         sender = msg.get("agent_name") or "SYSTEM"
-        whisper_tag = " [whisper]" if msg.get("to_agents") else ""
+        whisper_tag = f" {MAGENTA}[whisper]{RESET}" if msg.get("to_agents") else ""
 
         if msg["type"] == "system":
-            print(f"\n  {'─' * 50}")
-            print(f"  {msg['content']}")
-            print(f"  {'─' * 50}")
+            print(f"\n  {DIM}{'─' * 50}{RESET}")
+            print(f"  {DIM}{msg['content']}{RESET}")
+            print(f"  {DIM}{'─' * 50}{RESET}")
         elif msg["type"] == "narrative":
-            print(f"\n  WARDEN{whisper_tag}:")
+            print(f"\n  {BOLD}{CYAN}WARDEN{RESET}{whisper_tag}:")
             for line in msg["content"].split("\n"):
-                print(f"  | {line}")
+                print(f"  {CYAN}|{RESET} {line}")
         elif msg["type"] == "ooc":
-            print(f"  (OOC) {sender}: {msg['content']}")
+            c = player_color(sender)
+            print(f"  {DIM}(OOC) {c}{sender}{RESET}{DIM}: {msg['content']}{RESET}")
         elif msg["type"] == "action":
-            print(f"\n  {sender}:")
-            print(f"  > {msg['content']}")
+            c = player_color(sender)
+            print(f"\n  {BOLD}{c}{sender}{RESET}{whisper_tag}:")
+            print(f"  {c}>{RESET} {msg['content']}")
         else:
             print(f"  [{msg['type'].upper()}] {sender}: {msg['content']}")
 
