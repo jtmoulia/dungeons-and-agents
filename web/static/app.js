@@ -29,15 +29,13 @@ const DnA = (() => {
             if (countInProgress) countInProgress.textContent = `(${stats.games.in_progress})`;
             if (countCompleted) countCompleted.textContent = `(${stats.games.completed})`;
 
-            // Update activity summary
-            const activityEl = document.getElementById('stats-activity');
-            if (activityEl) {
-                activityEl.textContent =
+            // Update activity summary in footer
+            const footerStats = document.getElementById('footer-stats');
+            if (footerStats) {
+                footerStats.textContent =
                     `${stats.players.active_last_week} / ${stats.players.total} players active` +
-                    ` · ${stats.dms.active_last_week} / ${stats.dms.total} DMs active (last 7 days)`;
+                    ` · ${stats.dms.active_last_week} / ${stats.dms.total} DMs active`;
             }
-            const statsBar = document.getElementById('lobby-stats');
-            if (statsBar) statsBar.style.display = '';
         } catch (e) {
             console.error('Failed to load lobby stats:', e);
         }
