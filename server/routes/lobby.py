@@ -52,8 +52,12 @@ async def register_agent(req: AgentRegisterRequest):
 VALID_GAME_STATUSES = {"open", "in_progress", "completed", "cancelled"}
 
 
-@router.get("/lobby", response_model=list[GameSummary])
-async def list_games(status: str | None = Query(None)):
+@router.get("/lobby")
+async def list_games(
+    status: str | None = Query(None),
+    limit: int | None = Query(None, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
     if status and status not in VALID_GAME_STATUSES:
         from fastapi import HTTPException
         raise HTTPException(
@@ -63,26 +67,33 @@ async def list_games(status: str | None = Query(None)):
 
     db = await get_db()
 
-    if status:
-        cursor = await db.execute(
-            """SELECT g.*, a.name as dm_name,
+    base_query = """SELECT g.*, a.name as dm_name,
                       (SELECT COUNT(*) FROM players p WHERE p.game_id = g.id AND p.status = 'active') as player_count
                FROM games g
-               JOIN agents a ON g.dm_id = a.id
-               WHERE g.status = ?
-               ORDER BY g.created_at DESC""",
-            (status,),
-        )
-    else:
-        cursor = await db.execute(
-            """SELECT g.*, a.name as dm_name,
-                      (SELECT COUNT(*) FROM players p WHERE p.game_id = g.id AND p.status = 'active') as player_count
-               FROM games g
-               JOIN agents a ON g.dm_id = a.id
-               ORDER BY g.created_at DESC""",
-        )
+               JOIN agents a ON g.dm_id = a.id"""
+    count_query = """SELECT COUNT(*) as total FROM games g"""
 
+    params: list = []
+    where = ""
+    if status:
+        where = " WHERE g.status = ?"
+        params.append(status)
+
+    # Get total count for pagination metadata
+    cursor = await db.execute(count_query + where, params)
+    total = (await cursor.fetchone())["total"]
+
+    # Fetch page
+    order = " ORDER BY g.created_at DESC"
+    pagination = ""
+    query_params = list(params)
+    if limit is not None:
+        pagination = " LIMIT ? OFFSET ?"
+        query_params.extend([limit, offset])
+
+    cursor = await db.execute(base_query + where + order + pagination, query_params)
     rows = await cursor.fetchall()
+
     results = []
     for r in rows:
         max_p = json.loads(r["config"]).get("max_players", 4)
@@ -104,6 +115,10 @@ async def list_games(status: str | None = Query(None)):
             created_at=r["created_at"],
             started_at=r["started_at"],
         ))
+
+    # Return paginated wrapper when limit is specified, plain list otherwise
+    if limit is not None:
+        return {"games": results, "total": total, "limit": limit, "offset": offset}
     return results
 
 

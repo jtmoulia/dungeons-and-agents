@@ -77,6 +77,19 @@ footer a:hover {
     margin: 0 0.5rem;
 }
 
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1rem 0 0.5rem;
+}
+
+.pagination button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
 /* Lobby */
 
 .filters {

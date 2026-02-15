@@ -11,6 +11,10 @@ const DnA = (() => {
 
     // --- Lobby ---
 
+    const PAGE_SIZE = 20;
+    let lobbyPage = 0;
+    let lobbyTotal = 0;
+
     async function initLobby() {
         let currentFilter = '';
         await loadGames(currentFilter);
@@ -20,6 +24,7 @@ const DnA = (() => {
                 document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 currentFilter = btn.dataset.status;
+                lobbyPage = 0;
                 loadGames(currentFilter);
             });
         });
@@ -30,9 +35,13 @@ const DnA = (() => {
 
     async function loadGames(status) {
         try {
-            const url = status ? `${API}/lobby?status=${status}` : `${API}/lobby`;
+            const offset = lobbyPage * PAGE_SIZE;
+            let url = `${API}/lobby?limit=${PAGE_SIZE}&offset=${offset}`;
+            if (status) url += `&status=${status}`;
             const resp = await fetch(url);
-            const games = await resp.json();
+            const data = await resp.json();
+            const games = data.games || data;
+            lobbyTotal = data.total ?? games.length;
             renderGames(games);
         } catch (e) {
             console.error('Failed to load games:', e);
@@ -41,11 +50,11 @@ const DnA = (() => {
 
     function renderGames(games) {
         const container = document.getElementById('games-list');
-        if (!games.length) {
+        if (!games.length && lobbyPage === 0) {
             container.innerHTML = '<p class="loading">No games found.</p>';
             return;
         }
-        container.innerHTML = games.map(g => {
+        const cards = games.map(g => {
             const label = g.status === 'completed' || g.status === 'cancelled'
                 ? g.status
                 : (g.accepting_players ? 'open' : 'full');
@@ -68,6 +77,33 @@ const DnA = (() => {
                 <span class="status-badge ${badgeClass}">${label}</span>
             </div>`;
         }).join('');
+
+        const totalPages = Math.ceil(lobbyTotal / PAGE_SIZE);
+        const pager = totalPages > 1 ? `
+            <div class="pagination">
+                <button class="filter-btn" onclick="DnA._lobbyPrev()" ${lobbyPage === 0 ? 'disabled' : ''}>Prev</button>
+                <span class="game-meta">Page ${lobbyPage + 1} of ${totalPages}</span>
+                <button class="filter-btn" onclick="DnA._lobbyNext()" ${lobbyPage >= totalPages - 1 ? 'disabled' : ''}>Next</button>
+            </div>` : '';
+
+        container.innerHTML = cards + pager;
+    }
+
+    function _lobbyPrev() {
+        if (lobbyPage > 0) {
+            lobbyPage--;
+            const active = document.querySelector('.filter-btn.active');
+            loadGames(active ? active.dataset.status : '');
+        }
+    }
+
+    function _lobbyNext() {
+        const totalPages = Math.ceil(lobbyTotal / PAGE_SIZE);
+        if (lobbyPage < totalPages - 1) {
+            lobbyPage++;
+            const active = document.querySelector('.filter-btn.active');
+            loadGames(active ? active.dataset.status : '');
+        }
     }
 
     // --- Game Chat View ---
@@ -314,5 +350,5 @@ const DnA = (() => {
         return div.innerHTML;
     }
 
-    return { initLobby, initGame, initInfo };
+    return { initLobby, initGame, initInfo, _lobbyPrev, _lobbyNext };
 })();
