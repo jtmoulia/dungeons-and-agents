@@ -51,6 +51,13 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS votes (
+    game_id TEXT REFERENCES games(id),
+    agent_id TEXT REFERENCES agents(id),
+    created_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (game_id, agent_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_messages_game_created
     ON messages(game_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_games_status ON games(status);

@@ -52,9 +52,13 @@ async def register_agent(req: AgentRegisterRequest):
 VALID_GAME_STATUSES = {"open", "in_progress", "completed", "cancelled"}
 
 
+VALID_SORT_VALUES = {"newest", "top"}
+
+
 @router.get("/lobby")
 async def list_games(
     status: str | None = Query(None),
+    sort: str = Query("newest"),
     limit: int | None = Query(None, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ):
@@ -64,11 +68,18 @@ async def list_games(
             status_code=400,
             detail=f"Invalid status. Valid values: {sorted(VALID_GAME_STATUSES)}",
         )
+    if sort not in VALID_SORT_VALUES:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid sort. Valid values: {sorted(VALID_SORT_VALUES)}",
+        )
 
     db = await get_db()
 
     base_query = """SELECT g.*, a.name as dm_name,
-                      (SELECT COUNT(*) FROM players p WHERE p.game_id = g.id AND p.status = 'active' AND p.role != 'dm') as player_count
+                      (SELECT COUNT(*) FROM players p WHERE p.game_id = g.id AND p.status = 'active' AND p.role != 'dm') as player_count,
+                      (SELECT COUNT(*) FROM votes v WHERE v.game_id = g.id) as vote_count
                FROM games g
                JOIN agents a ON g.dm_id = a.id"""
     count_query = """SELECT COUNT(*) as total FROM games g"""
@@ -84,7 +95,10 @@ async def list_games(
     total = (await cursor.fetchone())["total"]
 
     # Fetch page
-    order = " ORDER BY g.created_at DESC"
+    if sort == "top":
+        order = " ORDER BY vote_count DESC, g.created_at DESC"
+    else:
+        order = " ORDER BY g.created_at DESC"
     pagination = ""
     query_params = list(params)
     if limit is not None:
@@ -112,6 +126,7 @@ async def list_games(
             player_count=player_count,
             max_players=max_p,
             accepting_players=accepting,
+            vote_count=r["vote_count"],
             created_at=r["created_at"],
             started_at=r["started_at"],
         ))
@@ -158,6 +173,12 @@ async def get_game_detail(game_id: str):
         for p in player_rows
     ]
 
+    # Get vote count
+    cursor = await db.execute(
+        "SELECT COUNT(*) as cnt FROM votes WHERE game_id = ?", (game_id,),
+    )
+    vote_count = (await cursor.fetchone())["cnt"]
+
     config = GameConfig.model_validate_json(game["config"])
     active_count = len([p for p in players if p.status == "active" and p.role != "dm"])
     game_status = game["status"]
@@ -171,6 +192,7 @@ async def get_game_detail(game_id: str):
         player_count=active_count,
         max_players=config.max_players,
         accepting_players=accepting,
+        vote_count=vote_count,
         created_at=game["created_at"],
         players=players,
         config=config,
@@ -218,3 +240,63 @@ async def create_game(req: CreateGameRequest, agent: dict = Depends(get_current_
         session_token=session_token,
         dm_guide=get_dm_guide(config.engine_type),
     )
+
+
+@router.post("/games/{game_id}/vote")
+async def toggle_vote(game_id: str, agent: dict = Depends(get_current_agent)):
+    from fastapi import HTTPException
+
+    db = await get_db()
+
+    # Verify game exists
+    cursor = await db.execute("SELECT id FROM games WHERE id = ?", (game_id,))
+    if not await cursor.fetchone():
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    # Check if vote already exists
+    cursor = await db.execute(
+        "SELECT 1 FROM votes WHERE game_id = ? AND agent_id = ?",
+        (game_id, agent["id"]),
+    )
+    existing = await cursor.fetchone()
+
+    if existing:
+        await db.execute(
+            "DELETE FROM votes WHERE game_id = ? AND agent_id = ?",
+            (game_id, agent["id"]),
+        )
+        voted = False
+    else:
+        now = datetime.now(timezone.utc).isoformat()
+        await db.execute(
+            "INSERT INTO votes (game_id, agent_id, created_at) VALUES (?, ?, ?)",
+            (game_id, agent["id"], now),
+        )
+        voted = True
+
+    await db.commit()
+
+    cursor = await db.execute(
+        "SELECT COUNT(*) as cnt FROM votes WHERE game_id = ?", (game_id,),
+    )
+    count = (await cursor.fetchone())["cnt"]
+
+    return {"voted": voted, "vote_count": count}
+
+
+@router.get("/games/{game_id}/votes")
+async def get_vote_count(game_id: str):
+    from fastapi import HTTPException
+
+    db = await get_db()
+
+    cursor = await db.execute("SELECT id FROM games WHERE id = ?", (game_id,))
+    if not await cursor.fetchone():
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    cursor = await db.execute(
+        "SELECT COUNT(*) as cnt FROM votes WHERE game_id = ?", (game_id,),
+    )
+    count = (await cursor.fetchone())["cnt"]
+
+    return {"vote_count": count}

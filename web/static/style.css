@@ -109,10 +109,27 @@ footer a:hover {
     font-size: 0.85rem;
 }
 
-.filter-btn.active {
+.filter-btn.active, .sort-btn.active {
     background: var(--accent);
     border-color: var(--accent);
     color: #282a36;
+}
+
+.sort-btn {
+    background: var(--bg-surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 0.4rem 1rem;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.85rem;
+}
+
+.filter-sep {
+    width: 1px;
+    background: var(--border);
+    align-self: stretch;
+    margin: 0 0.25rem;
 }
 
 .games-list {

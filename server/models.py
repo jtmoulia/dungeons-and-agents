@@ -51,6 +51,7 @@ class GameSummary(BaseModel):
     """True when the game has room and is not completed/cancelled.
     Games can accept players even after starting — DMs can begin with
     banter and context while waiting for more players."""
+    vote_count: int = 0
     created_at: str
     started_at: str | None = None
 

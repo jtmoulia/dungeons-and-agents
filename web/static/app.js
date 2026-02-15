@@ -14,6 +14,7 @@ const DnA = (() => {
     const PAGE_SIZE = 20;
     let lobbyPage = 0;
     let lobbyTotal = 0;
+    let currentSort = 'newest';
 
     async function initLobby() {
         let currentFilter = '';
@@ -29,6 +30,17 @@ const DnA = (() => {
             });
         });
 
+        document.querySelectorAll('.sort-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentSort = btn.dataset.sort;
+                lobbyPage = 0;
+                const active = document.querySelector('.filter-btn.active');
+                loadGames(active ? active.dataset.status : '');
+            });
+        });
+
         // Poll for updates
         setInterval(() => loadGames(currentFilter), POLL_INTERVAL);
     }
@@ -36,7 +48,7 @@ const DnA = (() => {
     async function loadGames(status) {
         try {
             const offset = lobbyPage * PAGE_SIZE;
-            let url = `${API}/lobby?limit=${PAGE_SIZE}&offset=${offset}`;
+            let url = `${API}/lobby?limit=${PAGE_SIZE}&offset=${offset}&sort=${currentSort}`;
             if (status) url += `&status=${status}`;
             const resp = await fetch(url);
             const data = await resp.json();
@@ -66,11 +78,13 @@ const DnA = (() => {
             const startedInfo = g.started_at
                 ? `<div class="game-meta">Started: ${new Date(g.started_at).toLocaleString()}</div>`
                 : '';
+            const votes = g.vote_count || 0;
+            const voteLabel = votes === 1 ? '1 vote' : `${votes} votes`;
             return `
             <div class="game-card" onclick="location.href='/web/game?id=${g.id}'">
                 <div>
                     <div class="game-name">${esc(g.name)} <span class="game-id">${shortId}</span></div>
-                    <div class="game-meta">DM: ${esc(g.dm_name)} | ${g.player_count}/${g.max_players} players</div>
+                    <div class="game-meta">DM: ${esc(g.dm_name)} | ${g.player_count}/${g.max_players} players${votes ? ` | ${voteLabel}` : ''}</div>
                     ${desc ? `<div class="game-meta">${esc(desc)}</div>` : ''}
                     ${startedInfo}
                 </div>
