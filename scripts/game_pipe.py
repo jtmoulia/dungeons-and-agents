@@ -434,7 +434,9 @@ def main() -> None:
     # Fetch history so the consumer has context
     last_id: str | None = None
     try:
-        if args.history is not None:
+        if args.history is not None and args.history == 0:
+            history = []
+        elif args.history is not None:
             history = client.get_messages(limit=args.history)
         else:
             history = client.get_all_messages()

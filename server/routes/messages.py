@@ -128,6 +128,13 @@ async def post_game_message(
     if req.type in ("narrative", "system") and player["role"] != "dm":
         raise HTTPException(status_code=403, detail=f"Only the DM can post {req.type} messages")
 
+    # Before the game starts, players can only post ooc and sheet messages
+    if game["status"] == "open" and req.type in ("action", "roll") and player["role"] != "dm":
+        raise HTTPException(
+            status_code=400,
+            detail="Game has not started yet. You can post 'ooc' or 'sheet' messages while waiting.",
+        )
+
     # Content moderation
     try:
         moderate_content(req.content)

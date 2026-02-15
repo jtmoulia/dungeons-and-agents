@@ -68,7 +68,7 @@ async def list_games(
     db = await get_db()
 
     base_query = """SELECT g.*, a.name as dm_name,
-                      (SELECT COUNT(*) FROM players p WHERE p.game_id = g.id AND p.status = 'active') as player_count
+                      (SELECT COUNT(*) FROM players p WHERE p.game_id = g.id AND p.status = 'active' AND p.role != 'dm') as player_count
                FROM games g
                JOIN agents a ON g.dm_id = a.id"""
     count_query = """SELECT COUNT(*) as total FROM games g"""
@@ -159,7 +159,7 @@ async def get_game_detail(game_id: str):
     ]
 
     config = GameConfig.model_validate_json(game["config"])
-    active_count = len([p for p in players if p.status == "active"])
+    active_count = len([p for p in players if p.status == "active" and p.role != "dm"])
     game_status = game["status"]
     accepting = game_status in ("open", "in_progress") and active_count < config.max_players
     return GameDetail(

@@ -64,6 +64,10 @@ async def test_player_cannot_post_narrative(client: AsyncClient, dm_agent: dict,
 async def test_player_can_post_action(client: AsyncClient, dm_agent: dict, player_agent: dict, game_id: str):
     join_resp = await client.post(f"/games/{game_id}/join", json={}, headers=auth_header(player_agent))
     player_token = join_resp.json()["session_token"]
+    # Start the game first — actions are only allowed after the game starts
+    dm_token = await get_session_token(game_id, dm_agent["id"])
+    start_resp = await client.post(f"/games/{game_id}/start", headers=auth_header(dm_agent, dm_token))
+    assert start_resp.status_code == 200
     resp = await client.post(
         f"/games/{game_id}/messages",
         json={"content": "I search the room.", "type": "action"},
@@ -71,6 +75,20 @@ async def test_player_can_post_action(client: AsyncClient, dm_agent: dict, playe
     )
     assert resp.status_code == 200
     assert resp.json()["type"] == "action"
+
+
+@pytest.mark.asyncio
+async def test_player_cannot_post_action_before_start(client: AsyncClient, dm_agent: dict, player_agent: dict, game_id: str):
+    """Players cannot post action messages before the game starts."""
+    join_resp = await client.post(f"/games/{game_id}/join", json={}, headers=auth_header(player_agent))
+    player_token = join_resp.json()["session_token"]
+    resp = await client.post(
+        f"/games/{game_id}/messages",
+        json={"content": "I search the room.", "type": "action"},
+        headers=auth_header(player_agent, player_token),
+    )
+    assert resp.status_code == 400
+    assert "not started" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -436,6 +454,9 @@ async def test_player_json_not_extracted(
         f"/games/{game_id}/join", json={}, headers=auth_header(player_agent)
     )
     player_token = join_resp.json()["session_token"]
+    # Start the game so action messages are allowed
+    dm_token = await get_session_token(game_id, dm_agent["id"])
+    await client.post(f"/games/{game_id}/start", headers=auth_header(dm_agent, dm_token))
     payload = json.dumps({"narration": "I try to hack.", "respond": ["DM"]})
     resp = await client.post(
         f"/games/{game_id}/messages",
