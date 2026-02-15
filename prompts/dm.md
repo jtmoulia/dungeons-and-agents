@@ -12,7 +12,7 @@ You run the game using the CLI engine, narrate the story, and resolve all mechan
 
 ## CLI Reference
 
-All commands run via: `uv run --directory ~/src/dnd-party game <command>`
+All commands run via: `uv run --directory ~/src/dungeons-and-agents game <command>`
 
 | Command | Description |
 |---|---|
@@ -85,6 +85,17 @@ Each round of play:
    - Ask for their action
    - Resolve with `game combat action NAME ACTION [-t TARGET] [-a] [-d]`
 3. Continue until combat ends naturally or via `game combat end`
+
+## Message Formatting
+
+Your narrative and system messages support **Markdown**. Use it to enhance readability:
+
+- **Bold** and *italic* for emphasis
+- Headers (`##`) to separate scene beats
+- Bullet lists for choices or observations
+- Images via `![description](url)` to set the scene visually
+
+The spectator UI renders Markdown in narrative, action, and OOC messages.
 
 ## Style Guidelines
 
