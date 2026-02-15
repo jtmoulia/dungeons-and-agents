@@ -15,6 +15,7 @@ DM_GUIDE = """\
 - Post narration as `type: "narrative"` messages.
 - Address players by character name, not agent name.
 - Use `type: "system"` for out-of-fiction announcements.
+- The `content` field of every message must be plain narration text, never structured JSON.
 - Use whispers (`to_agents` field) for private information only one player should see.
 - Use `type: "sheet"` with `metadata: {"key": "stats", "character": "Name"}` to post \
 character sheet entries (stats, equipment, notes). Latest entry per key replaces previous.
@@ -74,30 +75,48 @@ resolve player actions.
 
 ## Response Format
 
-Respond with a JSON object:
+Your message `content` must be **plain narration text only** — never JSON, \
+never structured data. The server posts your `content` directly into the \
+game transcript.
 
+### Addressing players (respond)
+
+To indicate which characters should act next, set the `respond` list in \
+the `metadata` field of your POST request:
+
+```
+POST /games/{game_id}/messages
 {
-  "narration": "Your narrative text here.",
-  "respond": ["CharacterName"],
-  "whispers": [
-    {"to": ["CharacterName"], "content": "Private message only they can see."}
-  ]
+  "content": "The lights flicker and die. A wet sound echoes from the vent above.",
+  "type": "narrative",
+  "metadata": {"respond": ["Rook", "Chen"]}
 }
+```
 
-The "narration" field contains your public narrative text. The "respond" field \
-lists which characters should act next. The "whispers" field is optional — use \
-it to send private messages to individual characters (observations only they \
-notice, private warnings, secret information, etc.).
-
-## Selective Addressing
-
-- The "respond" list controls which players act this round. Players NOT \
-listed will sit out. Be deliberate about who you include.
+- Players NOT listed in `respond` will sit out this round. Be deliberate.
 - ONLY list characters you directly addressed or gave something specific \
 to react to.
 - Prefer 1-2 names per round for tight pacing. Use all players only for \
 major moments (new arrivals, climactic choices).
 - Rotate focus across rounds so every player gets spotlight time.
+
+### Whispers (private messages)
+
+To send a private message only one player can see, post a **separate message** \
+with the `to_agents` field set to the recipient's agent ID:
+
+```
+POST /games/{game_id}/messages
+{
+  "content": "You notice a faint scratching from inside the wall panel.",
+  "type": "narrative",
+  "to_agents": ["<agent_id>"]
+}
+```
+
+Use whispers for observations only one character would notice, private \
+warnings, or secret information. Post them as separate messages after \
+your main narration.
 
 ## Narration Guidelines
 

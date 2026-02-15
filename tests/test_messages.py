@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from httpx import AsyncClient
 
@@ -345,3 +347,117 @@ async def test_latest_message_id_in_response(
     data = resp.json()
     assert "latest_message_id" in data
     assert data["latest_message_id"] == msg_id
+
+
+# --- DM JSON extraction safety net tests ---
+
+
+@pytest.mark.asyncio
+async def test_dm_json_narration_extracted(
+    client: AsyncClient, dm_agent: dict, game_id: str
+):
+    """DM posts JSON with narration+respond — narration extracted, respond in metadata."""
+    token = await get_session_token(game_id, dm_agent["id"])
+    payload = json.dumps({
+        "narration": "The lights flicker and die.",
+        "respond": ["Rook"],
+    })
+    resp = await client.post(
+        f"/games/{game_id}/messages",
+        json={"content": payload, "type": "narrative"},
+        headers=auth_header(dm_agent, token),
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["content"] == "The lights flicker and die."
+    assert data["metadata"]["respond"] == ["Rook"]
+
+
+@pytest.mark.asyncio
+async def test_dm_json_whispers_auto_posted(
+    client: AsyncClient, dm_agent: dict, player_agent: dict, game_id: str
+):
+    """DM posts JSON with whispers — whispers auto-posted as separate messages."""
+    join_resp = await client.post(
+        f"/games/{game_id}/join",
+        json={"character_name": "Rook"},
+        headers=auth_header(player_agent),
+    )
+    player_token = join_resp.json()["session_token"]
+    token = await get_session_token(game_id, dm_agent["id"])
+
+    payload = json.dumps({
+        "narration": "The corridor stretches ahead.",
+        "respond": ["Rook"],
+        "whispers": [
+            {"to": ["Rook"], "content": "You hear scratching in the wall."},
+        ],
+    })
+    resp = await client.post(
+        f"/games/{game_id}/messages",
+        json={"content": payload, "type": "narrative"},
+        headers=auth_header(dm_agent, token),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["content"] == "The corridor stretches ahead."
+
+    # The whisper should appear as a separate message visible to the player
+    resp = await client.get(
+        f"/games/{game_id}/messages",
+        headers=auth_header(player_agent),
+    )
+    msgs = unwrap_messages(resp.json())
+    whisper_msgs = [m for m in msgs if m.get("to_agents")]
+    assert len(whisper_msgs) >= 1
+    assert any("scratching" in m["content"] for m in whisper_msgs)
+
+
+@pytest.mark.asyncio
+async def test_dm_plain_text_unchanged(
+    client: AsyncClient, dm_agent: dict, game_id: str
+):
+    """DM posts plain text — content unchanged (no false positive extraction)."""
+    token = await get_session_token(game_id, dm_agent["id"])
+    resp = await client.post(
+        f"/games/{game_id}/messages",
+        json={"content": "The airlock hisses open.", "type": "narrative"},
+        headers=auth_header(dm_agent, token),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["content"] == "The airlock hisses open."
+
+
+@pytest.mark.asyncio
+async def test_player_json_not_extracted(
+    client: AsyncClient, dm_agent: dict, player_agent: dict, game_id: str
+):
+    """Player posts JSON with narration key — NOT extracted (DM-only safety net)."""
+    join_resp = await client.post(
+        f"/games/{game_id}/join", json={}, headers=auth_header(player_agent)
+    )
+    player_token = join_resp.json()["session_token"]
+    payload = json.dumps({"narration": "I try to hack.", "respond": ["DM"]})
+    resp = await client.post(
+        f"/games/{game_id}/messages",
+        json={"content": payload, "type": "action"},
+        headers=auth_header(player_agent, player_token),
+    )
+    assert resp.status_code == 200
+    # Content should remain the raw JSON string
+    assert resp.json()["content"] == payload
+
+
+@pytest.mark.asyncio
+async def test_dm_json_without_narration_unchanged(
+    client: AsyncClient, dm_agent: dict, game_id: str
+):
+    """DM posts JSON without narration key — content unchanged."""
+    token = await get_session_token(game_id, dm_agent["id"])
+    payload = json.dumps({"action": "roll", "target": "Rook"})
+    resp = await client.post(
+        f"/games/{game_id}/messages",
+        json={"content": payload, "type": "narrative"},
+        headers=auth_header(dm_agent, token),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["content"] == payload

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 
@@ -12,9 +15,62 @@ from server.guides import DM_INSTRUCTIONS, PLAYER_INSTRUCTIONS
 from server.models import GameMessagesResponse, MessageResponse, PostMessageRequest
 from server.moderation import ModerationError, moderate_content, moderate_image
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 VALID_MSG_TYPES = {"narrative", "action", "roll", "system", "ooc", "sheet"}
+
+
+def _maybe_extract_dm_json(
+    content: str, metadata: dict | None,
+) -> tuple[str, dict | None, list[dict] | None]:
+    """Extract narration from JSON content posted by a DM.
+
+    If *content* is a JSON object with a ``"narration"`` key, extracts:
+    - plain narration text as the new content
+    - ``respond`` list merged into metadata
+    - whisper items (list of ``{"to": [...], "content": "..."}`` dicts)
+
+    Returns ``(content, metadata, whispers)`` — *whispers* is ``None`` when
+    there are none to post.  If the content is not extractable JSON, it is
+    returned unchanged.
+    """
+    try:
+        data = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        return content, metadata, None
+
+    if not isinstance(data, dict) or "narration" not in data:
+        return content, metadata, None
+
+    logger.info("Extracting narration from JSON DM message")
+
+    narration = str(data["narration"])
+    metadata = dict(metadata) if metadata else {}
+    if "respond" in data and data["respond"]:
+        metadata.setdefault("respond", data["respond"])
+
+    whispers: list[dict] | None = None
+    if "whispers" in data and isinstance(data["whispers"], list):
+        whispers = data["whispers"]
+
+    return narration, metadata or None, whispers
+
+
+async def _resolve_character_names(game_id: str, names: list[str]) -> list[str]:
+    """Map character names to agent IDs for whisper routing."""
+    db = await get_db()
+    agent_ids: list[str] = []
+    for name in names:
+        cursor = await db.execute(
+            "SELECT agent_id FROM players WHERE game_id = ? AND character_name = ?",
+            (game_id, name),
+        )
+        row = await cursor.fetchone()
+        if row:
+            agent_ids.append(row["agent_id"])
+    return agent_ids
 
 
 async def _validate_session_token(request: Request, game_id: str, agent_id: str) -> None:
@@ -91,11 +147,34 @@ async def post_game_message(
                        "Poll messages and retry.",
             )
 
+    content = req.content
+    metadata = req.metadata
+    whispers: list[dict] | None = None
+
+    # Safety net: if a DM posts raw JSON with a "narration" key, extract it.
+    if player["role"] == "dm" and req.type in ("narrative", "system"):
+        content, metadata, whispers = _maybe_extract_dm_json(content, metadata)
+
     msg = await post_message(
-        game_id, agent["id"], req.content, req.type, req.metadata,
+        game_id, agent["id"], content, req.type, metadata,
         image_url=req.image_url,
         to_agents=req.to_agents,
     )
+
+    # Auto-post extracted whispers as separate messages
+    if whispers:
+        for w in whispers:
+            w_content = w.get("content", "")
+            w_to_names = w.get("to", [])
+            if not w_content or not w_to_names:
+                continue
+            to_agent_ids = await _resolve_character_names(game_id, w_to_names)
+            if to_agent_ids:
+                await post_message(
+                    game_id, agent["id"], w_content, "narrative",
+                    to_agents=to_agent_ids,
+                )
+
     return MessageResponse(**msg)
 
 
