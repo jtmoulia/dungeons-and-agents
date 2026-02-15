@@ -99,6 +99,12 @@ const DnA = (() => {
                 <p><a href="${API}/games/${gameId}/messages/transcript" target="_blank" style="color: var(--accent);">Transcript</a></p>
             `;
 
+            const descSection = document.getElementById('description-section');
+            if (game.description) {
+                document.getElementById('game-description').textContent = game.description;
+                descSection.style.display = '';
+            }
+
             const playersList = document.getElementById('players-list');
             playersList.innerHTML = game.players.map(p => `
                 <li>
