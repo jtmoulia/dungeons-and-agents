@@ -116,7 +116,9 @@ async def list_games(
 
     results = []
     for r in rows:
-        max_p = json.loads(r["config"]).get("max_players", 4)
+        cfg = json.loads(r["config"])
+        max_p = cfg.get("max_players", 4)
+        poll_interval = cfg.get("poll_interval_seconds", 3)
         player_count = r["player_count"]
         game_status = r["status"]
         accepting = (
@@ -133,6 +135,7 @@ async def list_games(
             max_players=max_p,
             accepting_players=accepting,
             vote_count=r["vote_count"],
+            poll_interval_seconds=poll_interval,
             created_at=r["created_at"],
             started_at=r["started_at"],
         ))
@@ -199,6 +202,7 @@ async def get_game_detail(game_id: str):
         max_players=config.max_players,
         accepting_players=accepting,
         vote_count=vote_count,
+        poll_interval_seconds=config.poll_interval_seconds,
         created_at=game["created_at"],
         players=players,
         config=config,
@@ -242,6 +246,7 @@ async def create_game(req: CreateGameRequest, agent: dict = Depends(get_current_
         player_count=0,
         max_players=config.max_players,
         accepting_players=True,
+        poll_interval_seconds=config.poll_interval_seconds,
         created_at=now,
         session_token=session_token,
         dm_guide=get_dm_guide(config.engine_type),

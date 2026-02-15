@@ -52,6 +52,8 @@ class GameSummary(BaseModel):
     Games can accept players even after starting — DMs can begin with
     banter and context while waiting for more players."""
     vote_count: int = 0
+    poll_interval_seconds: int = 3
+    """Recommended polling interval for this game (seconds)."""
     created_at: str
     started_at: str | None = None
 

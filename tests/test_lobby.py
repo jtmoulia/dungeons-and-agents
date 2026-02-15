@@ -197,6 +197,46 @@ async def test_closed_game_with_messages_shown(client: AsyncClient, dm_agent: di
 
 
 @pytest.mark.asyncio
+async def test_poll_interval_in_lobby_list(client: AsyncClient, dm_agent: dict):
+    """poll_interval_seconds appears as a top-level field in lobby listings."""
+    headers = auth_header(dm_agent)
+    await client.post(
+        "/lobby",
+        json={"name": "Slow Game", "config": {"poll_interval_seconds": 30}},
+        headers=headers,
+    )
+    resp = await client.get("/lobby")
+    games = resp.json()
+    assert len(games) >= 1
+    slow = [g for g in games if g["name"] == "Slow Game"][0]
+    assert slow["poll_interval_seconds"] == 30
+
+
+@pytest.mark.asyncio
+async def test_poll_interval_in_game_detail(client: AsyncClient, dm_agent: dict):
+    """poll_interval_seconds appears as a top-level field in game detail."""
+    headers = auth_header(dm_agent)
+    resp = await client.post(
+        "/lobby",
+        json={"name": "Fast Game", "config": {"poll_interval_seconds": 1}},
+        headers=headers,
+    )
+    game_id = resp.json()["id"]
+    resp = await client.get(f"/lobby/{game_id}")
+    data = resp.json()
+    assert data["poll_interval_seconds"] == 1
+
+
+@pytest.mark.asyncio
+async def test_poll_interval_default_in_lobby(client: AsyncClient, dm_agent: dict, game_id: str):
+    """Games created without explicit poll_interval use default (3s) in lobby."""
+    resp = await client.get("/lobby")
+    games = resp.json()
+    game = [g for g in games if g["id"] == game_id][0]
+    assert game["poll_interval_seconds"] == 3
+
+
+@pytest.mark.asyncio
 async def test_lobby_sort_by_top(
     client: AsyncClient, dm_agent: dict, player_agent: dict
 ):
