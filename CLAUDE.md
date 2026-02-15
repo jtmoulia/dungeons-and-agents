@@ -195,6 +195,38 @@ Messages flow through: session token validation → content moderation
 
 Run scenarios via `uv run pytest tests/test_harness.py -v`.
 
+## LLM Simulation (`scripts/`)
+
+The `scripts/` directory contains LLM-driven game orchestration:
+
+- **`scripts/agents.py`** — `GameAgent`, `AIPlayer`, `AIDM`, and `EngineAIDM`
+  classes using the Anthropic Claude API.
+- **`scripts/play_game.py`** — Autonomous game orchestrator for the Hull Breach
+  campaign.
+
+### DM Styles
+
+The simulation supports two DM styles, controlled by the `--freestyle` flag:
+
+- **Engine-backed** (default) — `EngineAIDM` uses Anthropic tool use to call
+  `GameEngine`/`CombatEngine` methods locally. Dice rolls, damage, stress,
+  panic, and combat are mechanically resolved via d100 roll-under rules, then
+  woven into narrative. Characters are created with classes, stats, weapons, and
+  armor in the orchestrator.
+- **Freestyle** (`--freestyle`) — `AIDM` generates pure narration with no
+  mechanical backing. No dice, no stats.
+
+```bash
+# Engine-backed (default)
+uv run python scripts/play_game.py --base-url http://localhost:8111
+
+# Freestyle mode
+uv run python scripts/play_game.py --base-url http://localhost:8111 --freestyle
+
+# Short test run
+uv run python scripts/play_game.py --base-url http://localhost:8111 --rounds 2
+```
+
 ## Dependencies
 
 Managed via `uv` and `pyproject.toml`. Core deps are `click` and `pydantic`.

@@ -28,7 +28,11 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 import anthropic
 import httpx
 
-from agents import GameAgent, AIPlayer, AIDM
+from agents import GameAgent, AIPlayer, AIDM, EngineAIDM
+
+from game.engine import GameEngine
+from game.combat import CombatEngine
+from game.models import CharacterClass, Weapon, Armor
 
 
 # ---------------------------------------------------------------------------
@@ -39,10 +43,42 @@ CAMPAIGN_PATH = Path(__file__).resolve().parent.parent / "campaigns" / "hull-bre
 
 
 # ---------------------------------------------------------------------------
+# Engine character setup
+# ---------------------------------------------------------------------------
+
+CHARACTER_CLASSES = {
+    "Reyes": CharacterClass.TEAMSTER,    # engineer
+    "Okafor": CharacterClass.MARINE,     # protector / cook
+    "Tran": CharacterClass.SCIENTIST,    # nav officer
+}
+
+CHARACTER_EQUIPMENT: dict[str, dict] = {
+    "Reyes": {
+        "weapons": [Weapon(name="Rivet Gun", damage="1d10", range="close", shots=6)],
+        "armor": Armor(name="Vacc Suit", ap=3),
+        "inventory": ["Toolbox", "Welding torch", "Duct tape", "Comms headset"],
+    },
+    "Okafor": {
+        "weapons": [
+            Weapon(name="Cleaver", damage="1d10", range="close"),
+            Weapon(name="Flare Gun", damage="1d10", range="nearby", shots=2, special="incendiary"),
+        ],
+        "armor": Armor(name="Reinforced Apron", ap=2),
+        "inventory": ["First aid kit", "Ration packs", "Flask (whiskey)", "Comms headset"],
+    },
+    "Tran": {
+        "weapons": [Weapon(name="Service Pistol", damage="1d10", range="nearby", shots=8)],
+        "armor": Armor(name="Flight Suit", ap=1),
+        "inventory": ["Nav computer (handheld)", "Star charts", "Stimulants x2", "Comms headset"],
+    },
+}
+
+
+# ---------------------------------------------------------------------------
 # System prompts
 # ---------------------------------------------------------------------------
 
-DM_SYSTEM_PROMPT = """\
+FREESTYLE_DM_SYSTEM_PROMPT = """\
 You are the **Warden** (DM) for "Dungeons and Agents," a sci-fi horror RPG. \
 You run a play-by-post game aboard the MSV Koronis, a mining vessel with a \
 catastrophic hull breach.
@@ -85,6 +121,83 @@ Rules for the "respond" list:
 - Stay in the fiction. Never reference APIs, game mechanics, or system details.
 - Address players by character name.
 - When a new player joins mid-session, fold them in naturally.
+
+## Campaign Reference
+
+```json
+{campaign_json}
+```
+"""
+
+ENGINE_DM_SYSTEM_PROMPT = """\
+You are the **Warden** (DM) for "Dungeons and Agents," a sci-fi horror RPG \
+backed by a d100 roll-under game engine. You run a play-by-post game aboard \
+the MSV Koronis, a mining vessel with a catastrophic hull breach.
+
+## Style
+
+- **Tone**: Sci-fi horror. Tense, atmospheric. Think Alien meets blue-collar space workers.
+- **Length**: 1-3 SHORT paragraphs. Punchy, not purple. Leave space for players to react.
+- **Pacing**: End each narration with a clear prompt — a question, a sound, a choice.
+- **NPCs**: Give them distinct voices. Lin speaks in clipped, clinical sentences. \
+Delacroix rambles when scared. ARIA is monotone and procedural.
+- **Player agency**: Present situations. Never dictate what player characters do or feel.
+- **Selective addressing**: Focus on 1-2 characters per narration. Rotate across rounds.
+
+## Game Engine
+
+You have tools to resolve actions mechanically. Use them when appropriate:
+
+- **roll_check**: Call for stat/save checks when a player attempts something risky or \
+uncertain. Not every action needs a roll — routine tasks succeed automatically. Use \
+rolls for danger, pressure, or contested actions.
+- **apply_damage / heal**: When creatures attack or players receive medical aid.
+- **add_stress**: Witnessing horror, failed checks, or traumatic events add stress. \
+Small comforts or victories can reduce it.
+- **panic_check**: Call when stress is high and something terrifying happens.
+- **start_combat / combat_action / end_combat**: For structured combat encounters. \
+Use combat for significant confrontations, not every minor scuffle.
+- **set_scene**: Update the scene description when the location changes.
+
+### When to roll
+- Player attempts something dangerous or uncertain → roll_check
+- Player is hurt by environment or creature → apply_damage
+- Something horrifying happens → add_stress, then maybe panic_check
+- Major confrontation (Void Stalker) → start_combat
+
+### Narrating results
+- Weave mechanical results into cinematic narration. Don't just say "you succeeded" — \
+describe what success or failure looks like in the fiction.
+- Critical successes deserve dramatic payoff. Critical failures should be memorable.
+- A failed check doesn't always mean total failure — it can mean success with a cost.
+
+## Response Format (REQUIRED)
+
+After using any tools you need, respond with a JSON object with two fields:
+- "narration": your narrative text incorporating tool results (string)
+- "respond": list of character names who should reply (1-2 names, not everyone)
+
+Example:
+```json
+{{"narration": "Reyes jams the rivet gun into the access panel and fires. The bolt \
+punches clean through the lock mechanism — the door grinds open with a shriek of \
+protesting metal. But the sound carries. Something in the ventilation shaft above \
+you goes quiet. Too quiet.", "respond": ["Reyes"]}}
+```
+
+Rules for the "respond" list:
+- ONLY include characters you directly addressed BY NAME or gave something specific to react to.
+- Prefer 1-2 characters per round for tight pacing.
+- You MAY list all players for key moments (new arrivals, major choices, climactic scenes).
+- Players NOT in the respond list will not act this round. Be deliberate.
+- Rotate focus across rounds so everyone gets spotlight time.
+
+## Rules
+
+- Stay in the fiction. Never reference APIs, tool names, or system internals.
+- Address players by character name.
+- When a new player joins mid-session, fold them in naturally.
+- Use the engine tools to resolve uncertainty — don't invent roll results.
 
 ## Campaign Reference
 
@@ -243,6 +356,10 @@ def main():
     parser = argparse.ArgumentParser(description="Play a full Hull Breach arc with LLM agents")
     parser.add_argument("--base-url", default="http://localhost:8000")
     parser.add_argument("--rounds", type=int, default=8, help="Number of game rounds (default: 8)")
+    parser.add_argument(
+        "--freestyle", action="store_true",
+        help="Use freestyle (no engine) mode instead of engine-backed mechanics",
+    )
     args = parser.parse_args()
 
     base = args.base_url.rstrip("/")
@@ -301,8 +418,44 @@ def main():
         print(f"  {agent['display_name']} joined as {character_name}")
         return tok
 
+    # ── Engine setup ─────────────────────────────────────────────────
+    engine = None
+    combat_engine = None
+    use_engine = not args.freestyle
+
+    if use_engine:
+        print("\n=== Initializing game engine ===")
+        engine = GameEngine(in_memory=True)
+        engine.init_game(campaign["name"])
+        combat_engine = CombatEngine(engine)
+        print("  Engine ready (d100 roll-under mechanics)")
+
+    # ── Players join ──────────────────────────────────────────────────
+    print("\n=== Players joining ===")
+
+    def _create_engine_character(character_name: str) -> None:
+        """Create a character in the local engine and equip them."""
+        if not use_engine:
+            return
+        char_class = CHARACTER_CLASSES[character_name]
+        engine.create_character(character_name, char_class)
+        equip = CHARACTER_EQUIPMENT.get(character_name, {})
+        if equip:
+            state = engine.get_state()
+            char = state.characters[character_name]
+            if "weapons" in equip:
+                char.weapons = equip["weapons"]
+            if "armor" in equip:
+                char.armor = equip["armor"]
+            if "inventory" in equip:
+                char.inventory = equip["inventory"]
+            engine._save(state)
+        print(f"    Engine: {character_name} ({char_class.value}) created with equipment")
+
     alice_tok = join(alice_agent, "Reyes")
+    _create_engine_character("Reyes")
     bob_tok = join(bob_agent, "Okafor")
+    _create_engine_character("Okafor")
 
     # Carol joins mid-session (after round 3)
 
@@ -318,16 +471,28 @@ def main():
     print("  Game started!")
 
     # ── Build LLM agents ─────────────────────────────────────────────
-    dm_system = DM_SYSTEM_PROMPT.format(campaign_json=campaign_json)
-
-    dm = AIDM(
-        name="Warden",
-        system_prompt=dm_system,
-        llm=llm, http=http,
-        api_key=dm_agent["api_key"],
-        session_token=dm_tok,
-        game_id=game_id,
-    )
+    if use_engine:
+        dm_system = ENGINE_DM_SYSTEM_PROMPT.format(campaign_json=campaign_json)
+        dm = EngineAIDM(
+            name="Warden",
+            system_prompt=dm_system,
+            engine=engine,
+            combat_engine=combat_engine,
+            llm=llm, http=http,
+            api_key=dm_agent["api_key"],
+            session_token=dm_tok,
+            game_id=game_id,
+        )
+    else:
+        dm_system = FREESTYLE_DM_SYSTEM_PROMPT.format(campaign_json=campaign_json)
+        dm = AIDM(
+            name="Warden",
+            system_prompt=dm_system,
+            llm=llm, http=http,
+            api_key=dm_agent["api_key"],
+            session_token=dm_tok,
+            game_id=game_id,
+        )
 
     reyes = AIPlayer(
         name="Reyes",
@@ -376,6 +541,7 @@ def main():
         if round_num == carol_join_round and tran is None:
             print("\n  >>> Carol joins mid-session as Tran <<<")
             carol_tok = join(carol_agent, "Tran")
+            _create_engine_character("Tran")
             tran = AIPlayer(
                 name="Tran",
                 system_prompt=player_system_prompt("Tran", **CHARACTERS["Tran"]),
@@ -392,7 +558,19 @@ def main():
         # DM narrates
         hint = pacing[round_num]
         active_names = ", ".join(p.name for p in active_players)
-        full_hint = f"{hint}\n\nActive players: {active_names}. Remember: respond with JSON containing \"narration\" and \"respond\" fields."
+        engine_hint = ""
+        if use_engine:
+            engine_hint = (
+                "\n\nYou have game engine tools available. Consider calling for rolls "
+                "when players attempt risky actions. Use combat mechanics for significant "
+                "confrontations (e.g. the Void Stalker encounter). Not every action needs "
+                "a roll — let routine tasks succeed automatically."
+            )
+        full_hint = (
+            f"{hint}\n\nActive players: {active_names}. "
+            f"Remember: respond with JSON containing \"narration\" and \"respond\" fields."
+            f"{engine_hint}"
+        )
         print(f"\n  [Warden narrating...]", flush=True)
         narration = dm.narrate(full_hint)
         print(f"  [Warden done]", flush=True)
@@ -516,6 +694,9 @@ def main():
         elif msg["type"] == "ooc":
             c = player_color(sender)
             print(f"  {DIM}(OOC) {c}{sender}{RESET}{DIM}: {msg['content']}{RESET}")
+        elif msg["type"] == "roll":
+            YELLOW = "\033[33m"
+            print(f"  {DIM}{YELLOW}  {msg['content']}{RESET}")
         elif msg["type"] == "action":
             c = player_color(sender)
             print(f"\n  {BOLD}{c}{sender}{RESET}{whisper_tag}:")

@@ -10,13 +10,146 @@ the last poll, using the ?after= parameter for efficient incremental reads.
 
 from __future__ import annotations
 
+import json
 import httpx
 import anthropic
 
 
 MODEL = "claude-sonnet-4-5-20250929"
 DM_MAX_TOKENS = 1024
+ENGINE_DM_MAX_TOKENS = 2048
 PLAYER_MAX_TOKENS = 200
+
+
+# ---------------------------------------------------------------------------
+# Tool definitions for engine-backed DM (Anthropic tool use format)
+# ---------------------------------------------------------------------------
+
+ENGINE_TOOL_DEFINITIONS = [
+    {
+        "name": "roll_check",
+        "description": (
+            "Roll a d100 stat or save check for a character. Use for risky actions, "
+            "contested situations, or moments of uncertainty. Roll-under: success if "
+            "roll <= target. Critical success on doubles under target, critical failure "
+            "on doubles over."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "character_name": {"type": "string", "description": "Name of the character making the check"},
+                "stat": {
+                    "type": "string",
+                    "description": "Stat or save to check: strength, speed, intellect, combat, sanity, fear, body",
+                },
+                "skill": {"type": "string", "description": "Optional skill to apply bonus (e.g. 'mechanical_repair', 'zero_g')"},
+                "advantage": {"type": "boolean", "description": "Roll twice, take better result"},
+                "disadvantage": {"type": "boolean", "description": "Roll twice, take worse result"},
+            },
+            "required": ["character_name", "stat"],
+        },
+    },
+    {
+        "name": "apply_damage",
+        "description": "Apply damage to a character. Armor absorbs first, then HP. At 0 HP: wound + HP reset. Max wounds = death.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "character_name": {"type": "string", "description": "Name of the character taking damage"},
+                "amount": {"type": "integer", "description": "Amount of damage to apply"},
+            },
+            "required": ["character_name", "amount"],
+        },
+    },
+    {
+        "name": "heal",
+        "description": "Heal a character's HP (up to max_hp).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "character_name": {"type": "string", "description": "Name of the character to heal"},
+                "amount": {"type": "integer", "description": "Amount of HP to restore"},
+            },
+            "required": ["character_name", "amount"],
+        },
+    },
+    {
+        "name": "add_stress",
+        "description": "Add (or remove with negative) stress to a character. High stress makes panic checks more likely.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "character_name": {"type": "string", "description": "Name of the character"},
+                "amount": {"type": "integer", "description": "Stress to add (negative to reduce)"},
+            },
+            "required": ["character_name", "amount"],
+        },
+    },
+    {
+        "name": "panic_check",
+        "description": "Roll a panic check for a character (d20 vs stress). If roll <= stress, they panic with an effect from the panic table.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "character_name": {"type": "string", "description": "Name of the character"},
+            },
+            "required": ["character_name"],
+        },
+    },
+    {
+        "name": "start_combat",
+        "description": "Start a combat encounter. Rolls initiative for all combatants and sets turn order.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "combatant_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Names of all characters entering combat",
+                },
+            },
+            "required": ["combatant_names"],
+        },
+    },
+    {
+        "name": "combat_action",
+        "description": "Execute a combat action: attack, defend, flee, or use_item. Only valid during active combat.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "character_name": {"type": "string", "description": "Name of the acting character"},
+                "action": {
+                    "type": "string",
+                    "enum": ["attack", "defend", "flee", "use_item"],
+                    "description": "The combat action to take",
+                },
+                "target": {"type": "string", "description": "Target character name (required for attack)"},
+                "advantage": {"type": "boolean", "description": "Roll with advantage"},
+                "disadvantage": {"type": "boolean", "description": "Roll with disadvantage"},
+            },
+            "required": ["character_name", "action"],
+        },
+    },
+    {
+        "name": "end_combat",
+        "description": "End the current combat encounter.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "set_scene",
+        "description": "Set the current scene description in the engine state.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "description": {"type": "string", "description": "The scene description"},
+            },
+            "required": ["description"],
+        },
+    },
+]
 
 
 class GameAgent:
@@ -151,7 +284,6 @@ class AIDM(GameAgent):
 
     def narrate(self, instruction: str) -> dict:
         """Generate narration as JSON with respond list, post, and return."""
-        import json
         raw = self.generate(instruction)
         try:
             # Strip markdown code fences if present
@@ -174,7 +306,6 @@ class AIDM(GameAgent):
 
     def whisper(self, to_agent_ids: list[str], instruction: str) -> dict:
         """Generate and post a whispered narrative message."""
-        import json
         raw = self.generate(instruction)
         # Strip JSON wrapper if the LLM returned structured output
         try:
@@ -189,3 +320,259 @@ class AIDM(GameAgent):
         except (json.JSONDecodeError, KeyError, AttributeError):
             content = raw
         return self.post_message(content, "narrative", to_agents=to_agent_ids)
+
+
+class EngineAIDM(AIDM):
+    """Engine-backed DM that uses Anthropic tool use to call GameEngine/CombatEngine."""
+
+    def __init__(
+        self,
+        *,
+        engine,  # game.engine.GameEngine
+        combat_engine,  # game.combat.CombatEngine
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.engine = engine
+        self.combat_engine = combat_engine
+
+    def _execute_tool(self, name: str, params: dict) -> dict:
+        """Dispatch a tool call to the appropriate engine method."""
+        try:
+            if name == "roll_check":
+                result = self.engine.roll_check(
+                    params["character_name"],
+                    params["stat"],
+                    skill=params.get("skill"),
+                    advantage=params.get("advantage", False),
+                    disadvantage=params.get("disadvantage", False),
+                )
+                return {
+                    "character": params["character_name"],
+                    "stat": params["stat"],
+                    "roll": result.roll,
+                    "target": result.target,
+                    "result": result.result.value,
+                    "succeeded": result.succeeded,
+                    "all_rolls": result.all_rolls,
+                }
+            elif name == "apply_damage":
+                return self.engine.apply_damage(params["character_name"], params["amount"])
+            elif name == "heal":
+                healed = self.engine.heal(params["character_name"], params["amount"])
+                return {"character": params["character_name"], "healed": healed}
+            elif name == "add_stress":
+                stress = self.engine.add_stress(params["character_name"], params["amount"])
+                return {"character": params["character_name"], "stress": stress}
+            elif name == "panic_check":
+                return self.engine.panic_check(params["character_name"])
+            elif name == "start_combat":
+                combat_state = self.combat_engine.start_combat(params["combatant_names"])
+                return {
+                    "active": combat_state.active,
+                    "round": combat_state.round,
+                    "turn_order": [c.name for c in combat_state.combatants],
+                }
+            elif name == "combat_action":
+                return self.combat_engine.combat_action(
+                    params["character_name"],
+                    params["action"],
+                    target=params.get("target"),
+                    advantage=params.get("advantage", False),
+                    disadvantage=params.get("disadvantage", False),
+                )
+            elif name == "end_combat":
+                self.combat_engine.end_combat()
+                return {"status": "combat ended"}
+            elif name == "set_scene":
+                self.engine.set_scene(params["description"])
+                return {"scene": params["description"]}
+            else:
+                return {"error": f"Unknown tool: {name}"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def _format_engine_state(self) -> str:
+        """Concise summary of engine state for the LLM context."""
+        state = self.engine.get_state()
+        lines = ["## Current Engine State\n"]
+
+        if state.scene:
+            lines.append(f"**Scene:** {state.scene}\n")
+
+        for name, char in state.characters.items():
+            status_parts = [
+                f"HP {char.hp}/{char.max_hp}",
+                f"Stress {char.stress}",
+                f"Wounds {char.wounds}/{char.max_wounds}",
+            ]
+            if not char.alive:
+                status_parts.append("DEAD")
+            if char.conditions:
+                status_parts.append(f"Conditions: {', '.join(c.value for c in char.conditions)}")
+            if char.armor.ap > 0:
+                status_parts.append(f"Armor: {char.armor.name} (AP {char.armor.ap})")
+            if char.weapons:
+                wpn_list = ", ".join(f"{w.name} ({w.damage})" for w in char.weapons)
+                status_parts.append(f"Weapons: {wpn_list}")
+
+            stats = char.stats
+            saves = char.saves
+            stat_str = f"STR {stats.strength} SPD {stats.speed} INT {stats.intellect} CMB {stats.combat}"
+            save_str = f"SAN {saves.sanity} FEAR {saves.fear} BODY {saves.body}"
+            lines.append(f"**{name}** ({char.char_class.value}): {' | '.join(status_parts)}")
+            lines.append(f"  Stats: {stat_str} | Saves: {save_str}")
+
+        if state.combat.active:
+            order = ", ".join(c.name for c in state.combat.combatants)
+            current = state.combat.current_combatant or "none"
+            lines.append(f"\n**Combat:** Round {state.combat.round} | Order: {order} | Current: {current}")
+
+        return "\n".join(lines)
+
+    def _format_tool_result_message(self, tool_name: str, tool_result: dict) -> str:
+        """Human-readable summary of a tool result for posting as a roll message."""
+        if tool_name == "roll_check":
+            skill_info = f" (skill)" if "skill" in tool_result else ""
+            return (
+                f"🎲 {tool_result.get('character', '?')} rolls {tool_result.get('stat', '?')}{skill_info}: "
+                f"d100 → {tool_result.get('roll', '?')} vs {tool_result.get('target', '?')} — "
+                f"**{tool_result.get('result', '?')}**"
+            )
+        elif tool_name == "apply_damage":
+            parts = [f"💥 Damage applied: {tool_result.get('raw_damage', '?')}"]
+            if tool_result.get("absorbed"):
+                parts.append(f"(armor absorbed {tool_result['absorbed']})")
+            if tool_result.get("wound"):
+                parts.append("— WOUND!")
+            if tool_result.get("dead"):
+                parts.append("— DEAD!")
+            return " ".join(parts)
+        elif tool_name == "heal":
+            return f"💚 {tool_result.get('character', '?')} healed {tool_result.get('healed', '?')} HP"
+        elif tool_name == "add_stress":
+            return f"😰 {tool_result.get('character', '?')} stress now at {tool_result.get('stress', '?')}"
+        elif tool_name == "panic_check":
+            if tool_result.get("panicked"):
+                return (
+                    f"😱 PANIC! Rolled {tool_result.get('roll', '?')} vs stress "
+                    f"{tool_result.get('stress', '?')} — {tool_result.get('effect', '?')}"
+                )
+            return (
+                f"😤 Panic check: rolled {tool_result.get('roll', '?')} vs stress "
+                f"{tool_result.get('stress', '?')} — holds steady"
+            )
+        elif tool_name == "start_combat":
+            order = ", ".join(tool_result.get("turn_order", []))
+            return f"⚔️ Combat started! Initiative order: {order}"
+        elif tool_name == "combat_action":
+            actor = tool_result.get("actor", "?")
+            action = tool_result.get("action", "?")
+            parts = [f"⚔️ {actor}: {action}"]
+            if tool_result.get("target"):
+                parts.append(f"→ {tool_result['target']}")
+            if "roll" in tool_result:
+                parts.append(f"(rolled {tool_result['roll']}, {tool_result.get('check_result', '?')})")
+            if tool_result.get("damage"):
+                parts.append(f"dealing {tool_result['damage']} damage")
+            if tool_result.get("fled") is True:
+                parts.append("— escaped!")
+            elif tool_result.get("fled") is False:
+                parts.append("— blocked!")
+            return " ".join(parts)
+        elif tool_name == "end_combat":
+            return "⚔️ Combat ended."
+        elif tool_name == "set_scene":
+            return f"📍 Scene: {tool_result.get('scene', '?')[:80]}"
+        else:
+            return f"[{tool_name}] {json.dumps(tool_result)}"
+
+    def generate_with_tools(self, instruction: str) -> tuple[str, list[dict]]:
+        """Tool use loop: call LLM with tools, execute tool calls, repeat until text response.
+
+        Returns (narration_text, list_of_tool_results) where each tool result is
+        {"tool": name, "result": result_dict}.
+        """
+        all_messages = self.sync_messages()
+        transcript = self.format_transcript(all_messages)
+        engine_state = self._format_engine_state()
+
+        user_content = ""
+        if transcript:
+            user_content += f"## Game transcript so far\n\n{transcript}\n\n---\n\n"
+        user_content += f"{engine_state}\n\n---\n\n"
+        if self._server_instructions:
+            user_content += f"## Response instructions\n\n{self._server_instructions}\n\n---\n\n"
+        user_content += f"## Your instruction\n\n{instruction}"
+
+        messages = [{"role": "user", "content": user_content}]
+        tool_results: list[dict] = []
+
+        for _ in range(10):  # safety guard
+            response = self.llm.messages.create(
+                model=MODEL,
+                max_tokens=ENGINE_DM_MAX_TOKENS,
+                system=self.system_prompt,
+                messages=messages,
+                tools=ENGINE_TOOL_DEFINITIONS,
+            )
+
+            # Check if the response contains only text (done)
+            if response.stop_reason == "end_turn":
+                # Extract text from content blocks
+                text_parts = [b.text for b in response.content if b.type == "text"]
+                return "\n".join(text_parts), tool_results
+
+            # Process tool use blocks
+            assistant_content = response.content
+            messages.append({"role": "assistant", "content": assistant_content})
+
+            tool_use_results = []
+            for block in assistant_content:
+                if block.type == "tool_use":
+                    result = self._execute_tool(block.name, block.input)
+                    tool_results.append({"tool": block.name, "result": result})
+                    tool_use_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": json.dumps(result),
+                    })
+
+            if tool_use_results:
+                messages.append({"role": "user", "content": tool_use_results})
+            else:
+                # No tool use and not end_turn — extract text and return
+                text_parts = [b.text for b in assistant_content if b.type == "text"]
+                return "\n".join(text_parts) if text_parts else "", tool_results
+
+        # Safety: max iterations reached, return whatever text we have
+        return "[The Warden pauses, gathering thoughts...]", tool_results
+
+    def narrate(self, instruction: str) -> dict:
+        """Generate narration with engine tools, post roll messages, then narration."""
+        raw, tool_results = self.generate_with_tools(instruction)
+
+        # Post each tool result as a "roll" message
+        for tr in tool_results:
+            if "error" not in tr["result"]:
+                msg_text = self._format_tool_result_message(tr["tool"], tr["result"])
+                self.post_message(msg_text, "roll")
+
+        # Parse narration JSON (same format as AIDM)
+        try:
+            text = raw.strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+                if text.endswith("```"):
+                    text = text[:-3]
+                text = text.strip()
+            data = json.loads(text)
+            narration = data["narration"]
+            respond = data.get("respond", [])
+        except (json.JSONDecodeError, KeyError):
+            narration = raw
+            respond = []
+
+        result = self.post_message(narration, "narrative")
+        result["_respond"] = respond
+        return result
