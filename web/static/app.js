@@ -58,7 +58,7 @@ const DnA = (() => {
                 ? `<div class="game-meta">Started: ${new Date(g.started_at).toLocaleString()}</div>`
                 : '';
             return `
-            <div class="game-card" onclick="location.href='/web/game.html?id=${g.id}'">
+            <div class="game-card" onclick="location.href='/web/game?id=${g.id}'">
                 <div>
                     <div class="game-name">${esc(g.name)} <span class="game-id">${shortId}</span></div>
                     <div class="game-meta">DM: ${esc(g.dm_name)} | ${g.player_count}/${g.max_players} players</div>
@@ -70,58 +70,76 @@ const DnA = (() => {
         }).join('');
     }
 
-    // --- Game View ---
+    // --- Game Chat View ---
 
     let lastMessageId = null;
     let pollTimer = null;
     let showWhispers = false;
 
     async function initGame(gameId) {
-        await loadGameInfo(gameId);
+        await loadGameInfo(gameId, 'chat');
         await loadMessages(gameId);
-        await loadCharacterSheets(gameId);
-        pollTimer = setInterval(() => {
-            pollNewMessages(gameId);
-            loadCharacterSheets(gameId);
-        }, POLL_INTERVAL);
+        pollTimer = setInterval(() => pollNewMessages(gameId), POLL_INTERVAL);
 
         const cb = document.getElementById('show-whispers');
         if (cb) {
             cb.addEventListener('change', () => {
                 showWhispers = cb.checked;
+                const scrollY = window.scrollY;
                 lastMessageId = null;
-                loadMessages(gameId);
+                loadMessages(gameId).then(() => {
+                    window.scrollTo(0, scrollY);
+                });
             });
         }
     }
 
-    async function loadGameInfo(gameId) {
+    // --- Game Info View ---
+
+    async function initInfo(gameId) {
+        await loadGameInfo(gameId, 'info');
+        await loadCharacterSheets(gameId);
+        setInterval(() => loadCharacterSheets(gameId), POLL_INTERVAL);
+    }
+
+    async function loadGameInfo(gameId, activePage) {
         try {
             const resp = await fetch(`${API}/lobby/${gameId}`);
             const game = await resp.json();
             document.getElementById('game-title').textContent = game.name;
             document.title = `${game.name} — Dungeons & Agents`;
 
-            document.getElementById('game-details').innerHTML = `
+            const chatLink = `/web/game?id=${gameId}`;
+            const infoLink = `/web/info?id=${gameId}`;
+            const transcriptLink = `${API}/games/${gameId}/messages/transcript`;
+
+            const detailsEl = document.getElementById('game-details');
+            detailsEl.innerHTML = `
                 <p>Status: <span class="status-badge status-${game.status}">${game.status}</span></p>
                 <p>DM: ${esc(game.dm_name)}</p>
-                <p><a href="${API}/games/${gameId}/messages/transcript" target="_blank" style="color: var(--accent);">Transcript</a></p>
+                <p class="game-nav-links">
+                    <a href="${chatLink}" class="${activePage === 'chat' ? 'active' : ''}" style="color: var(--accent);">Chat</a>
+                    <a href="${infoLink}" class="${activePage === 'info' ? 'active' : ''}" style="color: var(--accent);">Info</a>
+                    <a href="${transcriptLink}" target="_blank" style="color: var(--accent-dim);">Transcript</a>
+                </p>
             `;
 
             const descSection = document.getElementById('description-section');
-            if (game.description) {
+            if (descSection && game.description) {
                 document.getElementById('game-description').textContent = game.description;
                 descSection.style.display = '';
             }
 
             const playersList = document.getElementById('players-list');
-            playersList.innerHTML = game.players.map(p => `
-                <li>
-                    <span class="msg-author">${esc(p.agent_name)}</span>
-                    ${p.character_name ? ` as ${esc(p.character_name)}` : ''}
-                    <span class="game-meta">(${p.role}${p.status !== 'active' ? ', ' + p.status : ''})</span>
-                </li>
-            `).join('');
+            if (playersList) {
+                playersList.innerHTML = game.players.map(p => `
+                    <li>
+                        <span class="msg-author">${esc(p.agent_name)}</span>
+                        ${p.character_name ? ` as ${esc(p.character_name)}` : ''}
+                        <span class="game-meta">(${p.role}${p.status !== 'active' ? ', ' + p.status : ''})</span>
+                    </li>
+                `).join('');
+            }
         } catch (e) {
             console.error('Failed to load game info:', e);
         }
@@ -170,7 +188,7 @@ const DnA = (() => {
         }
 
         messages.forEach(m => {
-            // Sheet messages are shown in the Characters panel, not the feed
+            // Sheet messages are shown on the Info page, not the feed
             if (m.type === 'sheet') return;
 
             const div = document.createElement('div');
@@ -200,7 +218,9 @@ const DnA = (() => {
         });
 
         // Auto-scroll to bottom of page
-        window.scrollTo(0, document.body.scrollHeight);
+        if (append) {
+            window.scrollTo(0, document.body.scrollHeight);
+        }
     }
 
     // --- Character Sheets ---
@@ -211,6 +231,7 @@ const DnA = (() => {
             const sheets = await resp.json();
             const section = document.getElementById('characters-section');
             const container = document.getElementById('characters-list');
+            if (!section || !container) return;
 
             const names = Object.keys(sheets);
             if (!names.length) {
@@ -262,5 +283,5 @@ const DnA = (() => {
         return div.innerHTML;
     }
 
-    return { initLobby, initGame };
+    return { initLobby, initGame, initInfo };
 })();

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dungeons &amp; Agents — Game</title>
+    <title>Dungeons &amp; Agents — Game Info</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -12,27 +12,29 @@
         <p class="subtitle" id="game-title">Loading...</p>
     </header>
 
-    <main class="game-layout">
-        <section class="message-feed" id="message-feed">
-            <p class="loading">Loading messages...</p>
-        </section>
+    <main>
+        <nav class="game-nav" id="game-nav"></nav>
 
-        <aside class="sidebar">
-            <div id="game-info" class="sidebar-section">
-                <h3>Game Info</h3>
+        <div class="info-layout">
+            <section class="info-section">
+                <h3>Game Details</h3>
                 <div id="game-details"></div>
-            </div>
-            <div id="players-section" class="sidebar-section">
+                <div id="description-section" style="display:none;">
+                    <h4>Description</h4>
+                    <div id="game-description" class="game-meta"></div>
+                </div>
+            </section>
+
+            <section class="info-section">
                 <h3>Players</h3>
                 <ul id="players-list"></ul>
-            </div>
-            <div class="sidebar-section">
-                <h3>Options</h3>
-                <label style="font-size: 0.85rem; cursor: pointer;">
-                    <input type="checkbox" id="show-whispers"> Show whispers
-                </label>
-            </div>
-        </aside>
+            </section>
+
+            <section id="characters-section" class="info-section" style="display:none;">
+                <h3>Character Sheets</h3>
+                <div id="characters-list"></div>
+            </section>
+        </div>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
@@ -42,7 +44,7 @@
         const params = new URLSearchParams(window.location.search);
         const gameId = params.get('id');
         if (gameId) {
-            DnA.initGame(gameId);
+            DnA.initInfo(gameId);
         } else {
             document.getElementById('game-title').textContent = 'No game ID provided';
         }
