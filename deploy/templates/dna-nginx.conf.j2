@@ -1,9 +1,21 @@
 limit_req_zone $binary_remote_addr zone=api:10m rate=120r/m;
 limit_req_zone $binary_remote_addr zone=register:10m rate=10r/m;
 
+# Redirect HTTP to HTTPS
 server {
     listen 80;
     server_name {{ server_name }};
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name {{ server_name }};
+
+    ssl_certificate /etc/letsencrypt/live/{{ server_name }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ server_name }}/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
     location / {
         proxy_pass http://127.0.0.1:8000;
