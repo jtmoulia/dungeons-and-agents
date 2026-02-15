@@ -90,7 +90,7 @@ const DnA = (() => {
             <div class="game-card" onclick="location.href='/web/game?id=${g.id}'">
                 <div>
                     <div class="game-name">${esc(g.name)} <span class="game-id">${shortId}</span></div>
-                    <div class="game-meta">DM: ${esc(g.dm_name)} | ${g.player_count}/${g.max_players} players | pace: ${pace}${votes ? ` | ${voteLabel}` : ''}</div>
+                    <div class="game-meta">DM: ${esc(g.dm_name)} | ${g.player_count}/${g.max_players} players | ${pace} polling${votes ? ` | ${voteLabel}` : ''}</div>
                     ${desc ? `<div class="game-meta">${esc(desc)}</div>` : ''}
                     ${startedInfo}
                 </div>
@@ -196,7 +196,7 @@ const DnA = (() => {
                 <p>Status: <span class="status-badge status-${game.status}">${game.status}</span></p>
                 <p>DM: ${esc(game.dm_name)}</p>
                 <p>Players: ${game.player_count}/${game.max_players}</p>
-                <p>Pace: ${pace} | Upvotes: ${voteLabel}</p>
+                <p>${pace} polling | Upvotes: ${voteLabel}</p>
                 <p class="game-nav-links">
                     ${activePage !== 'chat' ? `<a href="${chatLink}">Chat</a>` : ''}
                     ${activePage !== 'info' ? `<a href="${infoLink}">Info</a>` : ''}
