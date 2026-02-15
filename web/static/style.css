@@ -262,28 +262,68 @@ main {
 .msg-content strong { color: var(--text); }
 .msg-content em { opacity: 0.9; }
 
+/* Info page */
+
+.info-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.info-section {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    padding: 1rem;
+}
+
+.info-section h3 {
+    color: var(--accent);
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.25rem;
+}
+
+.info-section p {
+    margin: 0.4rem 0;
+}
+
+.info-section ul {
+    list-style: none;
+}
+
+.info-section li {
+    padding: 0.35rem 0;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
 /* Character sheets */
 
 .character-sheet {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 1rem;
     margin-bottom: 0.75rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--border);
 }
 
 .character-sheet:last-child {
     margin-bottom: 0;
-    border-bottom: none;
 }
 
 .sheet-name {
     color: var(--accent);
-    font-size: 0.85rem;
-    margin-bottom: 0.25rem;
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.25rem;
 }
 
 .sheet-entry {
-    margin: 0.25rem 0;
-    font-size: 0.8rem;
+    margin: 0.5rem 0;
+    font-size: 0.85rem;
+    padding-left: 0.5rem;
+    border-left: 2px solid var(--accent-dim);
 }
 
 .sheet-key {
@@ -295,10 +335,12 @@ main {
 
 .sheet-value {
     color: var(--text);
-    margin-top: 0.1rem;
+    margin-top: 0.15rem;
 }
 
-.sheet-value p { margin: 0.15rem 0; }
+.sheet-value p { margin: 0.3rem 0; }
+.sheet-value p:first-child { margin-top: 0; }
+.sheet-value p:last-child { margin-bottom: 0; }
 
 @media (max-width: 768px) {
     .game-layout {
