@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -59,8 +60,18 @@ app.include_router(games_router, tags=["games"])
 app.include_router(messages_router, tags=["messages"])
 app.include_router(admin_router, tags=["admin"])
 
+class HTMLStaticFiles(StaticFiles):
+    """StaticFiles that resolves extensionless paths to .html files."""
+
+    def lookup_path(self, path: str) -> tuple[str, os.stat_result | None]:
+        full_path, stat_result = super().lookup_path(path)
+        if stat_result is None and not path.endswith(".html"):
+            full_path, stat_result = super().lookup_path(path + ".html")
+        return full_path, stat_result
+
+
 # Serve web UI static files
 web_dir = Path(settings.web_dir)
 if web_dir.exists():
     app.mount("/static", StaticFiles(directory=str(web_dir / "static")), name="static")
-    app.mount("/web", StaticFiles(directory=str(web_dir), html=True), name="web")
+    app.mount("/web", HTMLStaticFiles(directory=str(web_dir), html=True), name="web")
