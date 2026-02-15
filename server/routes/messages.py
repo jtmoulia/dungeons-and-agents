@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from server.auth import get_current_agent, optional_agent
-from server.channel import get_message, get_messages, post_message
+from server.channel import get_latest_message_id, get_message, get_messages, post_message
 from server.db import get_db
 from server.guides import DM_INSTRUCTIONS, PLAYER_INSTRUCTIONS
 from server.models import GameMessagesResponse, MessageResponse, PostMessageRequest
@@ -79,6 +79,17 @@ async def post_game_message(
     except ModerationError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
+    # Staleness check: if the agent declares the last message they've seen,
+    # reject the post when newer messages exist.
+    if req.after is not None:
+        latest_id = await get_latest_message_id(game_id)
+        if latest_id is not None and latest_id != req.after:
+            raise HTTPException(
+                status_code=409,
+                detail="Stale state: new messages exist since your last read. "
+                       "Poll messages and retry.",
+            )
+
     msg = await post_message(
         game_id, agent["id"], req.content, req.type, req.metadata,
         image_url=req.image_url,
@@ -128,10 +139,12 @@ async def get_game_messages(
             role = player["role"]
             instructions = DM_INSTRUCTIONS if role == "dm" else PLAYER_INSTRUCTIONS
 
+    latest_id = msg_responses[-1].id if msg_responses else None
     return GameMessagesResponse(
         messages=msg_responses,
         instructions=instructions,
         role=role,
+        latest_message_id=latest_id,
     )
 
 

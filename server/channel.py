@@ -134,6 +134,17 @@ async def get_messages(
     return [_row_to_msg(r) for r in rows]
 
 
+async def get_latest_message_id(game_id: str) -> str | None:
+    """Return the ID of the most recent message in a game, or None."""
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT id FROM messages WHERE game_id = ? ORDER BY created_at DESC LIMIT 1",
+        (game_id,),
+    )
+    row = await cursor.fetchone()
+    return row["id"] if row else None
+
+
 async def get_message(game_id: str, msg_id: str) -> dict | None:
     """Get a single message by ID."""
     db = await get_db()

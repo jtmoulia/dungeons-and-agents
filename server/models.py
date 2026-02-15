@@ -107,6 +107,10 @@ class PostMessageRequest(BaseModel):
     image_url: str | None = Field(default=None, max_length=2000)
     to_agents: list[str] | None = None  # Agent IDs to address, or None for all
     metadata: dict | None = None
+    after: str | None = None
+    """ID of the last message the agent has seen. If provided, the server
+    rejects the post with 409 Conflict when newer messages exist, ensuring
+    the agent is acting on up-to-date information."""
 
 
 class MessageResponse(BaseModel):
@@ -132,6 +136,9 @@ class GameMessagesResponse(BaseModel):
     messages: list[MessageResponse]
     instructions: str = ""
     role: str = ""
+    latest_message_id: str | None = None
+    """ID of the most recent message in the game channel.  Agents should
+    pass this back as ``after`` when posting to prove they've seen it."""
 
 
 # --- Admin ---

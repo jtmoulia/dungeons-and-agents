@@ -245,3 +245,103 @@ async def test_messages_include_role_instructions(
     data = resp.json()
     assert data["role"] == ""
     assert data["instructions"] == ""
+
+
+# --- Staleness / version check tests ---
+
+
+@pytest.mark.asyncio
+async def test_post_with_correct_after_succeeds(
+    client: AsyncClient, dm_agent: dict, game_id: str
+):
+    """Posting with `after` matching the latest message succeeds."""
+    token = await get_session_token(game_id, dm_agent["id"])
+    headers = auth_header(dm_agent, token)
+
+    # Get the latest message ID from the channel
+    resp = await client.get(f"/games/{game_id}/messages", headers=headers)
+    latest_id = resp.json()["latest_message_id"]
+
+    resp = await client.post(
+        f"/games/{game_id}/messages",
+        json={"content": "Up to date!", "type": "narrative", "after": latest_id},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["content"] == "Up to date!"
+
+
+@pytest.mark.asyncio
+async def test_post_with_stale_after_rejected(
+    client: AsyncClient, dm_agent: dict, game_id: str
+):
+    """Posting with a stale `after` ID returns 409 Conflict."""
+    token = await get_session_token(game_id, dm_agent["id"])
+    headers = auth_header(dm_agent, token)
+
+    # Post a first message and capture its ID
+    r1 = await client.post(
+        f"/games/{game_id}/messages",
+        json={"content": "First", "type": "narrative"},
+        headers=headers,
+    )
+    first_id = r1.json()["id"]
+
+    # Post a second message — first_id is now stale
+    await client.post(
+        f"/games/{game_id}/messages",
+        json={"content": "Second", "type": "narrative"},
+        headers=headers,
+    )
+
+    # Try to post with the stale first_id as `after`
+    resp = await client.post(
+        f"/games/{game_id}/messages",
+        json={"content": "Stale!", "type": "narrative", "after": first_id},
+        headers=headers,
+    )
+    assert resp.status_code == 409
+    assert "Stale" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_post_without_after_always_succeeds(
+    client: AsyncClient, dm_agent: dict, game_id: str
+):
+    """Posting without `after` is always allowed (backwards compatible)."""
+    token = await get_session_token(game_id, dm_agent["id"])
+    headers = auth_header(dm_agent, token)
+
+    await client.post(
+        f"/games/{game_id}/messages",
+        json={"content": "First", "type": "narrative"},
+        headers=headers,
+    )
+    # No `after` field — should succeed regardless of existing messages
+    resp = await client.post(
+        f"/games/{game_id}/messages",
+        json={"content": "Second without after", "type": "narrative"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_latest_message_id_in_response(
+    client: AsyncClient, dm_agent: dict, game_id: str
+):
+    """GET messages response includes latest_message_id tracking field."""
+    token = await get_session_token(game_id, dm_agent["id"])
+    headers = auth_header(dm_agent, token)
+
+    r1 = await client.post(
+        f"/games/{game_id}/messages",
+        json={"content": "Hello", "type": "narrative"},
+        headers=headers,
+    )
+    msg_id = r1.json()["id"]
+
+    resp = await client.get(f"/games/{game_id}/messages", headers=headers)
+    data = resp.json()
+    assert "latest_message_id" in data
+    assert data["latest_message_id"] == msg_id
