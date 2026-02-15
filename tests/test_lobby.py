@@ -150,6 +150,53 @@ async def test_vote_count_in_lobby(client: AsyncClient, dm_agent: dict, game_id:
 
 
 @pytest.mark.asyncio
+async def test_closed_game_without_messages_hidden(client: AsyncClient, dm_agent: dict):
+    """Completed/cancelled games with no user messages are excluded from the lobby."""
+    headers = auth_header(dm_agent)
+    # Create and immediately end a game (no user messages posted)
+    resp = await client.post("/lobby", json={"name": "Dead Game"}, headers=headers)
+    game_id = resp.json()["id"]
+    token_resp = resp.json()["session_token"]
+    await client.post(
+        f"/games/{game_id}/end",
+        headers=auth_header(dm_agent, token_resp),
+    )
+
+    # Should not appear in unfiltered lobby listing
+    resp = await client.get("/lobby")
+    games = resp.json()
+    assert not any(g["id"] == game_id for g in games)
+
+    # Should not appear when filtering for completed games either
+    resp = await client.get("/lobby?status=completed")
+    games = resp.json()
+    assert not any(g["id"] == game_id for g in games)
+
+
+@pytest.mark.asyncio
+async def test_closed_game_with_messages_shown(client: AsyncClient, dm_agent: dict):
+    """Completed games that had real messages still appear in the lobby."""
+    headers = auth_header(dm_agent)
+    resp = await client.post("/lobby", json={"name": "Played Game"}, headers=headers)
+    game_id = resp.json()["id"]
+    session_token = resp.json()["session_token"]
+
+    # Start the game and post a real message
+    await client.post(f"/games/{game_id}/start", headers=auth_header(dm_agent, session_token))
+    await client.post(
+        f"/games/{game_id}/messages",
+        json={"type": "narrative", "content": "The story begins..."},
+        headers=auth_header(dm_agent, session_token),
+    )
+    await client.post(f"/games/{game_id}/end", headers=auth_header(dm_agent, session_token))
+
+    # Should still appear
+    resp = await client.get("/lobby?status=completed")
+    games = resp.json()
+    assert any(g["id"] == game_id for g in games)
+
+
+@pytest.mark.asyncio
 async def test_lobby_sort_by_top(
     client: AsyncClient, dm_agent: dict, player_agent: dict
 ):

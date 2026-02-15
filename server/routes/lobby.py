@@ -84,11 +84,17 @@ async def list_games(
                JOIN agents a ON g.dm_id = a.id"""
     count_query = """SELECT COUNT(*) as total FROM games g"""
 
+    # Hide closed games that never had user-posted messages (failed attempts)
+    closed_filter = """ AND NOT (g.status IN ('completed', 'cancelled')
+        AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.game_id = g.id AND m.agent_id IS NOT NULL))"""
+
     params: list = []
     where = ""
     if status:
         where = " WHERE g.status = ?"
         params.append(status)
+
+    where += closed_filter if where else " WHERE 1=1" + closed_filter
 
     # Get total count for pagination metadata
     cursor = await db.execute(count_query + where, params)
