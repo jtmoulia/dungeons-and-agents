@@ -9,7 +9,7 @@
   become: true
   vars:
     app_dir: /opt/dna
-    server_name: "{{ ansible_host }}"
+    server_name: dungeons-and-agents.com
 
   tasks:
     - name: Pull latest code
