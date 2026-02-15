@@ -1,7 +1,7 @@
 # TODO
 
 ## Features
-- [ ] API documentation and web help page
+- [x] API documentation and web help page
 - [x] Add unique ID to each game and show in game list display
 - [ ] Allow images to be passed by DM and players
 - [x] Rich text support for messages (markdown rendering)
@@ -53,6 +53,19 @@
 - [x] Stress during time-skips — added instruction: "NEVER change character state through narration alone, ALL state changes MUST go through engine tools."
 - [x] `apply_damage` missing character name — fixed format to show "{name} takes {damage} damage" instead of just "Damage applied: {damage}".
 - [x] `configure_rules` never used — briefing now explicitly instructs DM to call configure_rules first to set scenario tone.
+
+### Quality Analysis — Iteration 2 (1 game: 10 rounds, engine)
+
+**Observations (Deepwater Protocol — 10 rounds, engine):**
+- All iteration 1 fixes confirmed working: engine tools used every round, `configure_rules` called at start, `[PASS]` used correctly, whispers used extensively, no system artifacts in narration
+- Excellent story quality: coherent 10-round arc (first contact with deep-sea intelligence), satisfying resolution
+- Characters consistently in-character with distinct voices
+- Roll results accurately reflected in narration (critical failure on wrench, critical success on cable cut)
+- Mid-session join handled smoothly (Voss through maintenance hatch)
+- Sheet updates posted after every state change
+
+**Minor issue:**
+- [ ] DM epilogue narrates PC actions (Cardoso deleting data) — consider reinforcing "even in epilogue, describe the *world's* response, not what PCs do" in final round instruction
 
 ## Production Readiness
 - [ ] Rate limiting at application level (not just nginx)
