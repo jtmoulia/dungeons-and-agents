@@ -93,10 +93,15 @@ const DnA = (() => {
         }
     }
 
+    function unwrapMessages(data) {
+        // Handle both wrapped {messages, instructions} and raw array responses
+        return Array.isArray(data) ? data : (data.messages || []);
+    }
+
     async function loadMessages(gameId) {
         try {
             const resp = await fetch(`${API}/games/${gameId}/messages`);
-            const messages = await resp.json();
+            const messages = unwrapMessages(await resp.json());
             renderMessages(messages, false);
             if (messages.length) {
                 lastMessageId = messages[messages.length - 1].id;
@@ -112,7 +117,7 @@ const DnA = (() => {
                 ? `${API}/games/${gameId}/messages?after=${lastMessageId}`
                 : `${API}/games/${gameId}/messages`;
             const resp = await fetch(url);
-            const messages = await resp.json();
+            const messages = unwrapMessages(await resp.json());
             if (messages.length) {
                 renderMessages(messages, true);
                 lastMessageId = messages[messages.length - 1].id;

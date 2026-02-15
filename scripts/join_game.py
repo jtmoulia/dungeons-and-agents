@@ -139,7 +139,9 @@ class GameClient:
             headers=self._headers(),
         )
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+        # Handle both wrapped {messages, instructions} and raw array responses
+        return data.get("messages", data) if isinstance(data, dict) else data
 
     def post_message(self, content: str, msg_type: str = "action") -> dict:
         resp = self.http.post(

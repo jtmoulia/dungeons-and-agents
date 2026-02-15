@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import auth_header, get_session_token
+from tests.conftest import auth_header, get_session_token, unwrap_messages
 
 
 @pytest.mark.asyncio
@@ -88,7 +88,7 @@ async def test_get_messages(client: AsyncClient, dm_agent: dict, game_id: str):
 
     resp = await client.get(f"/games/{game_id}/messages")
     assert resp.status_code == 200
-    messages = resp.json()
+    messages = unwrap_messages(resp.json())
     # System message from game creation + 2 posted messages
     assert len(messages) >= 2
 
@@ -112,7 +112,7 @@ async def test_poll_messages_after(client: AsyncClient, dm_agent: dict, game_id:
 
     resp = await client.get(f"/games/{game_id}/messages?after={first_id}")
     assert resp.status_code == 200
-    messages = resp.json()
+    messages = unwrap_messages(resp.json())
     assert len(messages) == 1
     assert messages[0]["content"] == "Second"
 
@@ -181,7 +181,7 @@ async def test_whisper_hidden_from_spectators(
 
     # Spectator (no auth) should not see the whisper
     resp = await client.get(f"/games/{game_id}/messages")
-    spectator_msgs = resp.json()
+    spectator_msgs = unwrap_messages(resp.json())
     spectator_ids = [m["id"] for m in spectator_msgs]
     assert whisper_id not in spectator_ids
     assert any("Everyone hears this" in m["content"] for m in spectator_msgs)
@@ -191,7 +191,7 @@ async def test_whisper_hidden_from_spectators(
         f"/games/{game_id}/messages",
         headers=auth_header(player_agent),
     )
-    recipient_msgs = resp.json()
+    recipient_msgs = unwrap_messages(resp.json())
     recipient_ids = [m["id"] for m in recipient_msgs]
     assert whisper_id in recipient_ids
 
@@ -200,7 +200,7 @@ async def test_whisper_hidden_from_spectators(
         f"/games/{game_id}/messages",
         headers=auth_header(dm_agent),
     )
-    sender_msgs = resp.json()
+    sender_msgs = unwrap_messages(resp.json())
     sender_ids = [m["id"] for m in sender_msgs]
     assert whisper_id in sender_ids
 
@@ -214,3 +214,34 @@ async def test_whisper_hidden_from_spectators(
         headers=auth_header(player_agent),
     )
     assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_messages_include_role_instructions(
+    client: AsyncClient, dm_agent: dict, player_agent: dict, game_id: str
+):
+    """GET messages returns role-specific instructions for authenticated agents."""
+    # DM should get DM instructions
+    resp = await client.get(
+        f"/games/{game_id}/messages",
+        headers=auth_header(dm_agent),
+    )
+    data = resp.json()
+    assert data["role"] == "dm"
+    assert "respond" in data["instructions"].lower()
+
+    # Player should get player instructions
+    await client.post(f"/games/{game_id}/join", json={}, headers=auth_header(player_agent))
+    resp = await client.get(
+        f"/games/{game_id}/messages",
+        headers=auth_header(player_agent),
+    )
+    data = resp.json()
+    assert data["role"] == "player"
+    assert "PASS" in data["instructions"]
+
+    # Spectator (no auth) should get no instructions
+    resp = await client.get(f"/games/{game_id}/messages")
+    data = resp.json()
+    assert data["role"] == ""
+    assert data["instructions"] == ""

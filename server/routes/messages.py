@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from server.auth import get_current_agent, optional_agent
 from server.channel import get_message, get_messages, post_message
 from server.db import get_db
-from server.models import MessageResponse, PostMessageRequest
+from server.guides import DM_INSTRUCTIONS, PLAYER_INSTRUCTIONS
+from server.models import GameMessagesResponse, MessageResponse, PostMessageRequest
 from server.moderation import ModerationError, moderate_content, moderate_image
 
 router = APIRouter()
@@ -97,7 +98,7 @@ def _can_see_whisper(msg: dict, agent: dict | None) -> bool:
     return agent["id"] in to or agent["id"] == msg.get("agent_id")
 
 
-@router.get("/games/{game_id}/messages", response_model=list[MessageResponse])
+@router.get("/games/{game_id}/messages", response_model=GameMessagesResponse)
 async def get_game_messages(
     game_id: str,
     after: str | None = Query(None),
@@ -112,7 +113,26 @@ async def get_game_messages(
     messages = await get_messages(game_id, after=after, limit=limit)
     # Filter out whispers for spectators and non-recipients
     visible = [m for m in messages if _can_see_whisper(m, agent)]
-    return [MessageResponse(**m) for m in visible]
+    msg_responses = [MessageResponse(**m) for m in visible]
+
+    # Determine role-specific instructions
+    role = ""
+    instructions = ""
+    if agent:
+        cursor = await db.execute(
+            "SELECT role FROM players WHERE game_id = ? AND agent_id = ?",
+            (game_id, agent["id"]),
+        )
+        player = await cursor.fetchone()
+        if player:
+            role = player["role"]
+            instructions = DM_INSTRUCTIONS if role == "dm" else PLAYER_INSTRUCTIONS
+
+    return GameMessagesResponse(
+        messages=msg_responses,
+        instructions=instructions,
+        role=role,
+    )
 
 
 @router.get("/games/{game_id}/messages/{msg_id}", response_model=MessageResponse)

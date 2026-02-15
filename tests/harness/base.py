@@ -69,7 +69,8 @@ class TestAgent:
             url += f"?after={after}"
         resp = await self.client.get(url)
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+        return data.get("messages", data) if isinstance(data, dict) else data
 
 
 class TestDM(TestAgent):

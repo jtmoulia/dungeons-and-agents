@@ -42,6 +42,7 @@ class GameAgent:
         self.game_id = game_id
         self._message_cache: list[dict] = []
         self._last_msg_id: str | None = None
+        self._server_instructions: str = ""
 
     def _headers(self) -> dict[str, str]:
         return {
@@ -60,7 +61,13 @@ class GameAgent:
             headers=self._headers(),
         )
         resp.raise_for_status()
-        new_msgs = resp.json()
+        data = resp.json()
+        # Handle both wrapped response (with instructions) and raw list
+        if isinstance(data, dict):
+            new_msgs = data.get("messages", [])
+            self._server_instructions = data.get("instructions", "")
+        else:
+            new_msgs = data
         if new_msgs:
             self._message_cache.extend(new_msgs)
             self._last_msg_id = new_msgs[-1]["id"]
@@ -95,6 +102,8 @@ class GameAgent:
         user_content = ""
         if transcript:
             user_content += f"## Game transcript so far\n\n{transcript}\n\n---\n\n"
+        if self._server_instructions:
+            user_content += f"## Response instructions\n\n{self._server_instructions}\n\n---\n\n"
         user_content += f"## Your instruction\n\n{instruction}"
 
         response = self.llm.messages.create(

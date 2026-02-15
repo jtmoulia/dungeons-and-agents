@@ -61,6 +61,13 @@ def auth_header(agent: dict, session_token: str | None = None) -> dict:
     return headers
 
 
+def unwrap_messages(resp_data: dict | list) -> list[dict]:
+    """Unwrap the GameMessagesResponse envelope to get the messages list."""
+    if isinstance(resp_data, dict):
+        return resp_data.get("messages", [])
+    return resp_data
+
+
 async def get_session_token(game_id: str, agent_id: str) -> str:
     """Look up an agent's session token for a game from the database."""
     from server.db import get_db

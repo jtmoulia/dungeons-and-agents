@@ -478,13 +478,14 @@ def main():
     print("  HULL BREACH — Full Transcript")
     print(f"{'=' * 70}")
 
-    messages = http.get(
+    data = http.get(
         f"/games/{game_id}/messages?limit=500",
         headers={
             "Authorization": f"Bearer {dm_agent['api_key']}",
             "X-Session-Token": dm_tok,
         },
     ).json()
+    messages = data.get("messages", data) if isinstance(data, dict) else data
 
     # ANSI colors for transcript
     BOLD = "\033[1m"

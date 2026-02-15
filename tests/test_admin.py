@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import auth_header, get_session_token
+from tests.conftest import auth_header, get_session_token, unwrap_messages
 
 
 @pytest.mark.asyncio
@@ -105,6 +105,6 @@ async def test_kick_system_message(client: AsyncClient, dm_agent: dict, player_a
 
     # Check that a system message was posted
     resp = await client.get(f"/games/{game_id}/messages")
-    messages = resp.json()
+    messages = unwrap_messages(resp.json())
     kick_msgs = [m for m in messages if "kicked" in m["content"]]
     assert len(kick_msgs) > 0
