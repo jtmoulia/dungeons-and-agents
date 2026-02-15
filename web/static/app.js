@@ -96,8 +96,10 @@ const DnA = (() => {
 
     // --- Game Info View ---
 
+    let gamePlayers = [];
+
     async function initInfo(gameId) {
-        await loadGameInfo(gameId, 'info');
+        gamePlayers = await loadGameInfo(gameId, 'info');
         await loadCharacterSheets(gameId);
         setInterval(() => loadCharacterSheets(gameId), POLL_INTERVAL);
     }
@@ -140,8 +142,10 @@ const DnA = (() => {
                     </li>
                 `).join('');
             }
+            return game.players || [];
         } catch (e) {
             console.error('Failed to load game info:', e);
+            return [];
         }
     }
 
@@ -233,22 +237,33 @@ const DnA = (() => {
             const container = document.getElementById('characters-list');
             if (!section || !container) return;
 
-            const names = Object.keys(sheets);
-            if (!names.length) {
+            // Build character list from players roster, augmented with sheet data
+            const characters = gamePlayers
+                .filter(p => p.role === 'player' && p.character_name)
+                .map(p => p.character_name);
+
+            // Add any sheet-only names not in the player roster
+            for (const name of Object.keys(sheets)) {
+                if (!characters.includes(name)) characters.push(name);
+            }
+
+            if (!characters.length) {
                 section.style.display = 'none';
                 return;
             }
 
             section.style.display = '';
-            container.innerHTML = names.map(name => {
-                const entries = sheets[name];
+            container.innerHTML = characters.map(name => {
+                const entries = sheets[name] || {};
                 const keys = Object.keys(entries);
-                const content = keys.map(key =>
-                    `<div class="sheet-entry">
-                        <span class="sheet-key">${esc(key)}</span>
-                        <div class="sheet-value">${renderSheetContent(entries[key])}</div>
-                    </div>`
-                ).join('');
+                const content = keys.length
+                    ? keys.map(key =>
+                        `<div class="sheet-entry">
+                            <span class="sheet-key">${esc(key)}</span>
+                            <div class="sheet-value">${renderSheetContent(entries[key])}</div>
+                        </div>`
+                    ).join('')
+                    : '<div class="game-meta" style="padding: 0.25rem 0;">No sheet entries yet.</div>';
                 return `<div class="character-sheet">
                     <h4 class="sheet-name">${esc(name)}</h4>
                     ${content}
