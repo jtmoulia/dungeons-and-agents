@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     allowed_origins: list[str] = ["http://localhost:8000", "http://127.0.0.1:8000"]
+    enable_docs: bool = True  # set DNA_ENABLE_DOCS=false in production
     moderation_enabled: bool = True
     moderation_blocked_words: list[str] = []
     game_inactivity_timeout_seconds: int = 3600  # auto-close games after 1hr of no messages

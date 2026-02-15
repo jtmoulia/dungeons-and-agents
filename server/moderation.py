@@ -7,6 +7,7 @@ replacing the `moderate_content` and `moderate_image` functions.
 
 from __future__ import annotations
 
+import ipaddress
 import re
 
 # Words/patterns that trigger content filtering
@@ -15,6 +16,20 @@ _BLOCKED_PATTERNS: list[re.Pattern] = []
 
 # Flag to enable/disable moderation (useful for testing)
 _enabled = True
+
+# Built-in default blocked words (slurs and hate speech).
+# These are used when moderation is enabled but no custom list is configured.
+# Fantasy violence and in-game combat terms are intentionally excluded.
+DEFAULT_BLOCKED_WORDS: list[str] = [
+    # Racial/ethnic slurs
+    "chink", "gook", "kike", "nigger", "nigga", "spic", "wetback", "beaner",
+    "coon", "darkie", "raghead", "towelhead", "sandnigger", "zipperhead",
+    "honky", "cracker", "gringo", "redskin", "injun", "chinaman",
+    # Homophobic/transphobic slurs
+    "faggot", "fag", "dyke", "tranny",
+    # Ableist slurs
+    "retard", "retarded",
+]
 
 
 class ModerationError(Exception):
@@ -26,14 +41,18 @@ def configure_moderation(
     enabled: bool = True,
     blocked_words: list[str] | None = None,
 ) -> None:
-    """Configure the moderation system."""
+    """Configure the moderation system.
+
+    If *enabled* is True and no *blocked_words* are provided, the built-in
+    default list (slurs and hate speech) is used.
+    """
     global _enabled, _BLOCKED_PATTERNS
     _enabled = enabled
-    if blocked_words:
-        _BLOCKED_PATTERNS = [
-            re.compile(rf"\b{re.escape(w)}\b", re.IGNORECASE)
-            for w in blocked_words
-        ]
+    words = blocked_words if blocked_words else (DEFAULT_BLOCKED_WORDS if enabled else [])
+    _BLOCKED_PATTERNS = [
+        re.compile(rf"\b{re.escape(w)}\b", re.IGNORECASE)
+        for w in words
+    ]
 
 
 def moderate_content(content: str) -> str:
@@ -79,12 +98,18 @@ def moderate_image(image_url: str) -> str:
     blocked_hosts = {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
     if hostname in blocked_hosts:
         raise ModerationError("Image URLs cannot reference local addresses")
-    # Block RFC 1918 private ranges and link-local
-    if hostname.startswith(("10.", "192.168.", "172.16.", "172.17.", "172.18.",
-                           "172.19.", "172.20.", "172.21.", "172.22.", "172.23.",
-                           "172.24.", "172.25.", "172.26.", "172.27.", "172.28.",
-                           "172.29.", "172.30.", "172.31.", "169.254.")):
-        raise ModerationError("Image URLs cannot reference private network addresses")
+
+    # Use ipaddress module to catch encoded IPs (hex, octal, decimal)
+    try:
+        addr = ipaddress.ip_address(hostname)
+        if addr.is_loopback:
+            raise ModerationError("Image URLs cannot reference local addresses")
+        if addr.is_private or addr.is_link_local or addr.is_reserved:
+            raise ModerationError(
+                "Image URLs cannot reference private network addresses"
+            )
+    except ValueError:
+        pass  # Not an IP literal — hostname will be resolved normally
 
     # Placeholder: in production, call an external moderation API here
     # Example integration points:

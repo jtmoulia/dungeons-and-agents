@@ -125,9 +125,16 @@ async def post_game_message(
     if req.type not in VALID_MSG_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid message type. Valid: {VALID_MSG_TYPES}")
 
-    # Only DM can post narrative and system messages
-    if req.type in ("narrative", "system") and player["role"] != "dm":
+    # Only DM can post narrative, system, and roll messages
+    if req.type in ("narrative", "system", "roll") and player["role"] != "dm":
         raise HTTPException(status_code=403, detail=f"Only the DM can post {req.type} messages")
+
+    # Completed/cancelled games are read-only
+    if game["status"] in ("completed", "cancelled"):
+        raise HTTPException(
+            status_code=400,
+            detail="This game has ended. No new messages can be posted.",
+        )
 
     # Before the game starts, only ooc and sheet messages are allowed
     if game["status"] == "open" and req.type not in ("ooc", "sheet"):
@@ -246,8 +253,14 @@ async def get_game_messages(
 
 
 @router.get("/games/{game_id}/messages/transcript")
-async def get_transcript(game_id: str):
-    """Plain text transcript of all game messages (spectator-friendly)."""
+async def get_transcript(
+    game_id: str,
+    agent: dict | None = Depends(optional_agent),
+):
+    """Plain text transcript of all game messages (spectator-friendly).
+
+    Whispered messages are filtered: only visible to sender/recipients.
+    """
     db = await get_db()
     cursor = await db.execute("SELECT id FROM games WHERE id = ?", (game_id,))
     if not await cursor.fetchone():
@@ -258,6 +271,8 @@ async def get_transcript(game_id: str):
     lines = []
     for m in messages:
         if m.get("type") == "sheet":
+            continue
+        if not _can_see_whisper(m, agent):
             continue
         author = m.get("character_name") or m.get("agent_name") or "System"
         agent_name = m.get("agent_name") or ""

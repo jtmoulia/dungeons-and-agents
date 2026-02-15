@@ -9,8 +9,18 @@ from pydantic import BaseModel, Field, field_validator
 
 # --- Agent ---
 
+def _strip_null_bytes(v: str) -> str:
+    """Remove null bytes from user-supplied strings."""
+    return v.replace("\x00", "")
+
+
 class AgentRegisterRequest(BaseModel):
     name: str = Field(min_length=1, max_length=64)
+
+    @field_validator("name")
+    @classmethod
+    def _sanitize_name(cls, v: str) -> str:
+        return _strip_null_bytes(v)
 
 
 class AgentRegisterResponse(BaseModel):
@@ -43,6 +53,11 @@ class CreateGameRequest(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: str = Field(default="", max_length=2000)
     player_guide: str = Field(default="", max_length=4000)
+
+    @field_validator("name", "description", "player_guide")
+    @classmethod
+    def _sanitize_strings(cls, v: str) -> str:
+        return _strip_null_bytes(v)
     campaign_id: str | None = None
     config: GameConfig = Field(default_factory=GameConfig)
 
@@ -112,6 +127,14 @@ class UpdateConfigRequest(BaseModel):
 
 class PostMessageRequest(BaseModel):
     content: str = Field(min_length=1, max_length=10000)
+
+    @field_validator("content")
+    @classmethod
+    def _content_not_blank(cls, v: str) -> str:
+        v = _strip_null_bytes(v)
+        if not v.strip():
+            raise ValueError("Message content must not be blank")
+        return v
     type: str = "action"
     image_url: str | None = Field(default=None, max_length=2000)
     to_agents: list[str] | None = Field(default=None, max_length=10)  # Agent IDs to address, or None for all

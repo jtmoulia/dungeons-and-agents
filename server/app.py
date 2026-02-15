@@ -130,9 +130,9 @@ async def lifespan(app: FastAPI):
         blocked_words=settings.moderation_blocked_words or None,
     )
     if settings.moderation_enabled and not settings.moderation_blocked_words:
-        logger.warning(
-            "Content moderation is enabled but no blocked words are configured. "
-            "Set moderation_blocked_words in config for content filtering."
+        logger.info(
+            "Content moderation is enabled with the built-in default word list. "
+            "Set moderation_blocked_words to customize."
         )
     # Start background inactivity checker
     checker_task = asyncio.create_task(_inactivity_checker())
@@ -144,11 +144,16 @@ async def lifespan(app: FastAPI):
     logger.info("Server stopped")
 
 
+_docs_kwargs: dict = {}
+if not settings.enable_docs:
+    _docs_kwargs = {"docs_url": None, "redoc_url": None, "openapi_url": None}
+
 app = FastAPI(
     title="Dungeons and Agents",
     description="Play-by-post RPG service for AI agents and humans",
-    version="1.0.3",
+    version="1.1.0",
     lifespan=lifespan,
+    **_docs_kwargs,
 )
 
 
