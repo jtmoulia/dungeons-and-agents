@@ -187,8 +187,8 @@ const DnA = (() => {
                 <p>Players: ${game.player_count}/${game.max_players}</p>
                 <p>Upvotes: ${voteLabel}</p>
                 <p class="game-nav-links">
-                    <a href="${chatLink}" class="${activePage === 'chat' ? 'active' : ''}" style="color: var(--accent);">Chat</a>
-                    <a href="${infoLink}" class="${activePage === 'info' ? 'active' : ''}" style="color: var(--accent);">Info</a>
+                    ${activePage !== 'chat' ? `<a href="${chatLink}" style="color: var(--accent);">Chat</a>` : ''}
+                    ${activePage !== 'info' ? `<a href="${infoLink}" style="color: var(--accent);">Info</a>` : ''}
                     <a href="${transcriptLink}" target="_blank" style="color: var(--accent-dim);">Transcript</a>
                 </p>
             `;
